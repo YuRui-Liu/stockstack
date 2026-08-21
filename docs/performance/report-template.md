@@ -14,14 +14,23 @@
 
 - 运行命令：`k6 run -e SCENARIO=cached -e BASE_URL=http://localhost:8080 -e PRODUCT_ID=0198c8bc-1234-7abc-8def-0123456789ab loadtest/product-detail.js`
 - 前置条件：已请求一次目标商品并确认缓存已预热。
-- 结果摘要：
+
+| 并发 | 时长 | 吞吐（req/s） | P50 | P95 | P99 | Error rate | HTTP 200 | HTTP 429 | HTTP 503 |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+|  |  |  |  |  |  |  |  |  |  |
+
 - 阈值结果：失败率 `< 0.001`；P95 `< 200 ms`。
 - 原始证据位置：
 
 ## 2. 不存在商品（missing）
 
 - 运行命令：`k6 run -e SCENARIO=missing -e BASE_URL=http://localhost:8080 loadtest/product-detail.js`
-- 前置条件：确认 `MISSING_PRODUCT_ID` 在测试数据库中不存在。
+- 前置条件：脚本会生成合法的随机 UUIDv7；也可通过 `MISSING_ID` 覆盖，并确认覆盖值在测试数据库中不存在。
+
+| 并发 | 时长 | 吞吐（req/s） | P50 | P95 | P99 | Error rate | HTTP 200 | HTTP 429 | HTTP 503 |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+|  |  |  |  |  |  |  |  |  |  |
+
 - 结果摘要：预期 HTTP 404；404 作为业务预期响应，不计为请求失败。
 - 原始证据位置：
 
@@ -30,7 +39,11 @@
 - 清理命令：`docker compose exec -T redis redis-cli DEL product:v1:0198c8bc-1234-7abc-8def-0123456789ab`
 - 运行命令：`k6 run -e SCENARIO=hot-expiry -e BASE_URL=http://localhost:8080 -e PRODUCT_ID=0198c8bc-1234-7abc-8def-0123456789ab loadtest/product-detail.js`
 - 前置条件：紧接清理命令启动压测，不在脚本中直接操作 Redis。
-- 响应与延迟结果：
+
+| 并发 | 时长 | 吞吐（req/s） | P50 | P95 | P99 | Error rate | HTTP 200 | HTTP 429 | HTTP 503 |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+|  |  |  |  |  |  |  |  |  |  |
+
 - 应用 metrics 证据（测试时间窗前后差值）：
   - 数据库回源增量：
   - 锁竞争增量：
@@ -41,7 +54,11 @@
 
 - 运行命令：`k6 run -e SCENARIO=direct-baseline -e BASELINE_URL='http://localhost:PORT/path/{PRODUCT_ID}' -e PRODUCT_ID=0198c8bc-1234-7abc-8def-0123456789ab loadtest/product-detail.js`
 - 基线端点说明：由测试环境单独提供直接读取端点；管理 API 需要鉴权，不作为公开详情的直接基线。若未提供 `BASELINE_URL`，脚本会明确失败。
-- 结果摘要：
+
+| 并发 | 时长 | 吞吐（req/s） | P50 | P95 | P99 | Error rate | HTTP 200 | HTTP 429 | HTTP 503 |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+|  |  |  |  |  |  |  |  |  |  |
+
 - 原始证据位置：
 
 ## 缓存与基线对比
@@ -64,10 +81,18 @@
 
 ## Redis 降级验证
 
-- 暂停：`docker compose pause redis`
+- Docker Compose 暂停：`docker compose pause redis`
 - 运行：`k6 run -e BASE_URL=http://localhost:8080 -e PRODUCT_ID=0198c8bc-1234-7abc-8def-0123456789ab loadtest/redis-degraded.js`
-- 恢复（无论运行成功或失败都执行）：`docker compose unpause redis`
-- HTTP 200 / 429 / 503 计数：
+- Docker Compose 恢复（无论运行成功或失败都执行）：`docker compose unpause redis`
+- 本机 Redis：使用用户自己的服务管理器停止和启动 Redis。在另一个终端用 shell `trap` 或等价的 `finally` 机制登记恢复命令后再停止服务；不要用 kill 命令。压测成功、失败或中断后都必须恢复。
+
+| 并发 | 时长 | 吞吐（req/s） | P50 | P95 | P99 | HTTP 200 比例 | HTTP 429 比例 | HTTP 503 比例 |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+|  |  |  |  |  |  |  |  |  |
+
+- `service_available` 仅输出 HTTP 200 比例，不设置虚假的最低阈值。
+- `controlled_degradation` 输出 HTTP 429/503 合计比例，并同时保留两种状态的独立计数。
+- `responseCallback` 将 200/429/503 标记为预期，因此 `http_req_failed` 只表示非受控状态或传输错误，不能当作服务成功率。
 - 连接级错误与非预期状态：
 - 原始证据位置：
 

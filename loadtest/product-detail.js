@@ -4,10 +4,26 @@ import { Counter, Rate, Trend } from "k6/metrics";
 
 const BASE_URL = (__ENV.BASE_URL || "http://localhost:8080").replace(/\/$/, "");
 const PRODUCT_ID = __ENV.PRODUCT_ID || "0198c8bc-1234-7abc-8def-0123456789ab";
-const MISSING_PRODUCT_ID =
-  __ENV.MISSING_PRODUCT_ID || "0198c8bc-ffff-7fff-8fff-ffffffffffff";
 const SCENARIO = __ENV.SCENARIO || "cached";
 const BASELINE_URL = __ENV.BASELINE_URL || "";
+
+function randomHex(length) {
+  let value = "";
+  for (let index = 0; index < length; index += 1) {
+    value += Math.floor(Math.random() * 16).toString(16);
+  }
+  return value;
+}
+
+function uuidV7() {
+  // UUIDv7: 48-bit Unix epoch milliseconds, version 7, RFC 4122 variant 10.
+  const timestamp = Date.now().toString(16).padStart(12, "0").slice(-12);
+  const variant = (8 + Math.floor(Math.random() * 4)).toString(16);
+  return `${timestamp.slice(0, 8)}-${timestamp.slice(8)}-7${randomHex(3)}-${variant}${randomHex(3)}-${randomHex(12)}`;
+}
+
+// Generated independently by each k6 runtime; callers can pin a known-absent value.
+const MISSING_PRODUCT_ID = __ENV.MISSING_ID || uuidV7();
 
 const scenarioOptions = {
   cached: { executor: "constant-vus", vus: 50, duration: "30s" },
