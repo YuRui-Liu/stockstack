@@ -110,9 +110,8 @@ class ProductRepository:
             filters.append(
                 or_(
                     ProductModel.title.icontains(normalized_query, autoescape=True),
-                    cast(ProductModel.id, String).icontains(
-                        normalized_query, autoescape=True
-                    ),
+                    ProductModel.short_title.icontains(normalized_query, autoescape=True),
+                    cast(ProductModel.id, String).icontains(normalized_query, autoescape=True),
                 )
             )
         if product_type is not None:

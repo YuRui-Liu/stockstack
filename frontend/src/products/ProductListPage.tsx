@@ -1,11 +1,11 @@
-import { Alert, Button, Card, Form, Image, Input, Modal, Select, Space, Table, Tag, Typography } from "antd";
+import { Alert, Button, Form, Image, Input, Modal, Select, Table, Tooltip } from "antd";
 import type { TablePaginationConfig } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { ApiError, batchUpdateProductStatus, listProducts, updateProductStatus } from "../api/client";
 import type { ProductListParams, ProductStatus, ProductType, ProductView } from "../api/types";
-import { actionsForStatus, batchStatusActions, canTransition, statusLabels, type StatusAction } from "./status";
+import { actionsForStatus, batchStatusActions, canTransition, statusLabels, statusTagClassNames, type StatusAction } from "./status";
 
 const productTypeLabels: Record<ProductType, string> = {
   physical: "实物商品",
@@ -13,7 +13,7 @@ const productTypeLabels: Record<ProductType, string> = {
   creative: "创意商品",
 };
 
-const actionTextStyle = { fontSize: 14, fontWeight: 400 } as const;
+const lowStockThreshold = 10;
 
 function positiveInteger(value: string | null, fallback: number) {
   const parsed = Number(value);
@@ -36,6 +36,12 @@ function errorText(error: unknown): string {
   if (!(error instanceof ApiError)) return "商品操作失败，请重试";
   const failures = Object.entries(error.response.field_errors).flatMap(([id, reasons]) => reasons.map((reason) => `${id}：${reason}`));
   return failures.length ? failures.join("；") : error.response.message;
+}
+
+function actionClassName(tone: StatusAction["tone"]) {
+  if (tone === "on") return "ss-action-btn ss-action-btn-on";
+  if (tone === "off") return "ss-action-btn ss-action-btn-off";
+  return "ss-action-btn";
 }
 
 export default function ProductListPage() {
@@ -92,6 +98,11 @@ export default function ProductListPage() {
     search.set("page_size", String(next.page_size));
     if (search.toString() === searchParams.toString()) setRefreshGeneration((current) => current + 1);
     else setSearchParams(search);
+  };
+
+  const resetFilters = () => {
+    form.resetFields();
+    writeParams({ page: 1, page_size: params.page_size });
   };
 
   const changeStatus = async (product: ProductView, target: ProductStatus) => {
@@ -155,64 +166,147 @@ export default function ProductListPage() {
   };
 
   const columns = [
-    { title: "主图", key: "image", width: 80, render: (_: unknown, product: ProductView) => {
-      const main = product.images.find((image) => image.kind === "main");
-      return main ? <Image className="product-image" width={48} height={48} src={main.url} alt={`${product.title}主图`} preview={false} /> : "无主图";
-    } },
-    { title: "商品 ID", dataIndex: "id", key: "id", render: (value: string) => <Typography.Text className="product-id" title={value}>{value}</Typography.Text> },
-    { title: "标题", dataIndex: "title", key: "title", render: (value: string) => <Typography.Text className="product-title">{value}</Typography.Text> },
-    { title: "类型", dataIndex: "product_type", key: "product_type", render: (value: ProductType) => productTypeLabels[value] },
-    { title: "价格", dataIndex: "price_amount", key: "price_amount", render: (value: string) => value },
-    { title: "库存", dataIndex: "stock", key: "stock" },
-    { title: "状态", dataIndex: "status", key: "status", render: (value: ProductStatus) => <Tag className={`status-tag status-tag--${value}`}>{statusLabels[value]}</Tag> },
-    { title: "更新时间", dataIndex: "updated_at", key: "updated_at", render: (value: string) => new Date(value).toLocaleString("zh-CN", { hour12: false }) },
-    { title: "操作", key: "actions", fixed: "right" as const, width: 280, render: (_: unknown, product: ProductView) => <div className="product-actions">
-      <Link style={actionTextStyle} to={`/products/${product.id}`}>详情</Link>
-      <Link style={actionTextStyle} to={`/products/${product.id}/edit`}>编辑</Link>
-      {actionsForStatus(product.status).map((action) => <Button style={actionTextStyle} key={action.target} type="link" disabled={pendingIds.has(product.id)} loading={pendingIds.has(product.id)} onClick={() => runAction(product, action)}>{action.label}</Button>)}
-    </div> },
+    {
+      title: "商品信息",
+      key: "product",
+      render: (_: unknown, product: ProductView) => {
+        const main = product.images.find((image) => image.kind === "main");
+        return <div className="ss-product-info">
+          {main
+            ? <Image className="ss-product-thumb" width={56} height={56} src={main.url} alt={`${product.title}主图`} preview={false} />
+            : <span className="ss-product-thumb-empty">无主图</span>}
+          <div className="ss-product-meta">
+            <Link className="ss-product-title" to={`/products/${product.id}`} title={product.title}>{product.title}</Link>
+            <div className="ss-product-id">商品 ID: {product.id}</div>
+          </div>
+        </div>;
+      },
+    },
+    { title: "类型", dataIndex: "product_type", key: "product_type", width: 110, render: (value: ProductType) => productTypeLabels[value] },
+    { title: "价格（元）", dataIndex: "price_amount", key: "price_amount", width: 110, render: (value: string) => <span className="ss-price-text">{value}</span> },
+    {
+      title: "库存",
+      dataIndex: "stock",
+      key: "stock",
+      width: 90,
+      render: (value: number) => <span className={value <= lowStockThreshold ? "ss-stock-low" : "ss-stock-normal"}>{value}</span>,
+    },
+    {
+      title: "状态",
+      dataIndex: "status",
+      key: "status",
+      width: 100,
+      render: (value: ProductStatus) => <span className={statusTagClassNames[value]}>{statusLabels[value]}</span>,
+    },
+    {
+      title: "更新时间",
+      dataIndex: "updated_at",
+      key: "updated_at",
+      width: 170,
+      render: (value: string) => <span className="ss-time-text">{new Date(value).toLocaleString("zh-CN", { hour12: false })}</span>,
+    },
+    {
+      title: "操作",
+      key: "actions",
+      fixed: "right" as const,
+      width: 220,
+      render: (_: unknown, product: ProductView) => <div className="ss-action-space">
+        <Link style={{ fontSize: 14, fontWeight: 400 }} className="ss-action-link" to={`/products/${product.id}`}>详情</Link>
+        <Link style={{ fontSize: 14, fontWeight: 400 }} className="ss-action-link" to={`/products/${product.id}/edit`}>编辑</Link>
+        {actionsForStatus(product.status).map((action) => (
+          <Button
+            style={{ fontSize: 14, fontWeight: 400 }}
+            key={action.target}
+            type="link"
+            className={actionClassName(action.tone)}
+            disabled={pendingIds.has(product.id)}
+            loading={pendingIds.has(product.id)}
+            onClick={() => runAction(product, action)}
+          >{action.label}</Button>
+        ))}
+        {product.status === "penalized" && (
+          <Tooltip title="处罚是终态，不能再变更状态">
+            <Button style={{ fontSize: 14, fontWeight: 400 }} type="link" className="ss-action-btn ss-action-btn-off" disabled>已处罚</Button>
+          </Tooltip>
+        )}
+      </div>,
+    },
   ];
 
   const changeTable = (pagination: TablePaginationConfig) => {
     writeParams({ ...params, page: pagination.pageSize === params.page_size ? pagination.current ?? 1 : 1, page_size: pagination.pageSize ?? 20 });
   };
 
-  return <main className="page-container">
-    <header className="page-heading"><Typography.Title className="page-title" level={1}>商品管理</Typography.Title><Typography.Text className="page-subtitle">统一管理商品信息、库存及上下架状态</Typography.Text></header>
-    <Card className="surface-card">
-      <Form className="filter-form" form={form} layout="inline" onFinish={(values) => writeParams({ ...params, ...values, query: values.query?.trim() || undefined, page: 1 })}>
-        <Form.Item name="query" label="商品关键词"><Input className="filter-keyword" allowClear placeholder="请输入商品标题或 ID" /></Form.Item>
-        <Form.Item name="product_type" label="商品类型"><Select allowClear style={{ width: 140 }} options={Object.entries(productTypeLabels).map(([value, label]) => ({ value, label }))} /></Form.Item>
-        <Form.Item name="status" label="商品状态"><Select allowClear style={{ width: 120 }} options={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))} /></Form.Item>
-        <Button type="primary" htmlType="submit">查询</Button>
+  return <main className="ss-page">
+    <div className="ss-page-header">
+      <div className="ss-page-header-left">
+        <h1 className="ss-page-title">商品管理</h1>
+        <span className="ss-page-desc">管理所有商品信息，支持上架、下架及处罚状态管控</span>
+      </div>
+      <Link to="/products/new"><Button type="primary" size="large">发布商品</Button></Link>
+    </div>
+
+    <section className="ss-card ss-filter-card">
+      <Form
+        form={form}
+        layout="inline"
+        className="ss-filter-row"
+        onFinish={(values) => writeParams({ ...params, ...values, query: values.query?.trim() || undefined, page: 1 })}
+      >
+        <Form.Item name="query" label="商品关键词"><Input allowClear placeholder="请输入商品标题或 ID" style={{ width: 240 }} /></Form.Item>
+        <Form.Item name="product_type" label="商品类型"><Select allowClear placeholder="全部类型" style={{ width: 150 }} options={Object.entries(productTypeLabels).map(([value, label]) => ({ value, label }))} /></Form.Item>
+        <Form.Item name="status" label="商品状态"><Select allowClear placeholder="全部状态" style={{ width: 130 }} options={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))} /></Form.Item>
+        <div className="ss-filter-actions">
+          <Button onClick={resetFilters}>重置</Button>
+          <Button type="primary" htmlType="submit">查询</Button>
+        </div>
       </Form>
-      {error && <Alert role="alert" type="error" showIcon message={error} style={{ marginTop: 16 }} />}
-      <div className="table-toolbar"><Space>{batchStatusActions.map((action) => <Button key={action.target} disabled={!selectedIds.length || batchPending} loading={batchPending} onClick={() => void batchChange(action.target)}>{action.label}</Button>)}<Typography.Text className="selection-hint">{selectedIds.length ? `已选择 ${selectedIds.length} 项` : "选择商品后可批量操作"}</Typography.Text></Space><Select aria-label="每页条数" value={params.page_size} style={{ width: 120 }} onChange={(pageSize) => writeParams({ ...params, page: 1, page_size: pageSize })} options={[10, 20, 50, 100].map((value) => ({ value, label: `${value} 条/页` }))} /></div>
-      <Table<ProductView>
-        className="product-table"
-        rowKey="id"
-        loading={loading}
-        locale={{ emptyText: loading ? "加载中" : "暂无商品" }}
-        dataSource={products}
-        columns={columns}
-        scroll={{ x: 1500 }}
-        rowSelection={{ selectedRowKeys: selectedIds, onChange: setSelectedIds }}
-        pagination={{ current: params.page, pageSize: params.page_size, total, showSizeChanger: false }}
-        onChange={changeTable}
-      />
-    </Card>
+    </section>
+
+    <section className="ss-card ss-table-card">
+      <div className="ss-table-header">
+        <span className="ss-table-total">共 <strong>{total}</strong> 件商品</span>
+        <div className="ss-table-toolbar">
+          {batchStatusActions.map((action) => (
+            <Button key={action.target} disabled={!selectedIds.length || batchPending} loading={batchPending} onClick={() => void batchChange(action.target)}>{action.label}</Button>
+          ))}
+          <Select
+            aria-label="每页条数"
+            value={params.page_size}
+            style={{ width: 120 }}
+            onChange={(pageSize) => writeParams({ ...params, page: 1, page_size: pageSize })}
+            options={[10, 20, 50, 100].map((value) => ({ value, label: `${value} 条/页` }))}
+          />
+        </div>
+      </div>
+      {error && <Alert className="ss-alert" role="alert" type="error" showIcon message={error} />}
+      <div className="ss-table-body">
+        <Table<ProductView>
+          rowKey="id"
+          loading={loading}
+          locale={{ emptyText: loading ? "加载中" : "暂无商品" }}
+          dataSource={products}
+          columns={columns}
+          rowSelection={{ selectedRowKeys: selectedIds, onChange: setSelectedIds }}
+          pagination={{ current: params.page, pageSize: params.page_size, total, showSizeChanger: false, showTotal: (count) => `共 ${count} 条记录` }}
+          onChange={changeTable}
+        />
+      </div>
+    </section>
+
     <Modal
       open={!!confirming}
       getContainer={false}
       title="确认处罚"
       okText="确认处罚"
       cancelText="取消"
+      okButtonProps={{ danger: true }}
       onCancel={() => setConfirming(undefined)}
       onOk={() => {
         if (confirming) void changeStatus(confirming.product, confirming.action.target);
         setConfirming(undefined);
       }}
-    >确认将该商品设为处罚状态？</Modal>
+    >确认将该商品设为处罚状态？<span className="ss-upload-hint" style={{ display: "block", marginTop: 8 }}>处罚为终态，设置后不可再调整状态。</span></Modal>
     <Modal
       open={!!batchDialog}
       title={batchDialog?.title}

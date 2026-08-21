@@ -4,6 +4,8 @@ export interface StatusAction {
   target: ProductStatus;
   label: string;
   requiresConfirmation?: boolean;
+  /** 行内操作按钮的视觉分组，用于套用设计稿配色 */
+  tone?: "on" | "off" | "danger";
 }
 
 export const statusLabels: Record<ProductStatus, string> = {
@@ -12,14 +14,21 @@ export const statusLabels: Record<ProductStatus, string> = {
   penalized: "处罚中",
 };
 
+/** 状态标签的样式类，取自设计稿的三种 Tag 配色 */
+export const statusTagClassNames: Record<ProductStatus, string> = {
+  on_shelf: "ss-tag ss-tag-on-shelf",
+  off_shelf: "ss-tag ss-tag-off-shelf",
+  penalized: "ss-tag ss-tag-penalized",
+};
+
 const transitionActions: Record<ProductStatus, readonly StatusAction[]> = {
   off_shelf: [
-    { target: "on_shelf", label: "上架" },
-    { target: "penalized", label: "设为处罚", requiresConfirmation: true },
+    { target: "on_shelf", label: "上架", tone: "on" },
+    { target: "penalized", label: "设为处罚", requiresConfirmation: true, tone: "danger" },
   ],
   on_shelf: [
-    { target: "off_shelf", label: "下架" },
-    { target: "penalized", label: "设为处罚", requiresConfirmation: true },
+    { target: "off_shelf", label: "下架", tone: "off" },
+    { target: "penalized", label: "设为处罚", requiresConfirmation: true, tone: "danger" },
   ],
   penalized: [],
 };

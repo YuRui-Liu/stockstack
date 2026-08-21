@@ -1,4 +1,4 @@
-import { Button, ConfigProvider, Layout, Typography } from "antd";
+import { ConfigProvider, Layout } from "antd";
 import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
 import LoginPage from "../auth/LoginPage";
@@ -7,6 +7,7 @@ import ProductFormPage from "../products/ProductFormPage";
 import ProductDetailPage from "../products/ProductDetailPage";
 import ProductListPage from "../products/ProductListPage";
 import { adminTheme } from "./theme";
+import "./design.css";
 
 function ProductCreator() {
   const navigate = useNavigate();
@@ -21,14 +22,12 @@ function ProductEditor() {
 
 function ProductsLayout({ children }: { children: React.ReactNode }) {
   return (
-    <Layout className="app-shell">
-      <Layout.Header className="app-header">
-        <Link to="/products" className="app-brand" aria-label="快手 StockStack 商品管理首页">
-          <img className="app-brand-logo" src="/brand/kuaishou-logo.png" alt="快手" />
-          <span className="app-brand-divider" aria-hidden="true" />
-          <Typography.Text className="app-brand-name">StockStack</Typography.Text>
+    <Layout style={{ minHeight: "100vh" }}>
+      <Layout.Header className="ss-app-header">
+        <Link to="/products" className="ss-app-brand">
+          <span className="ss-app-brand-dot" aria-hidden="true" />
+          StockStack
         </Link>
-        <nav className="app-header-nav" aria-label="主导航"><Link to="/products" className="app-nav-link">商品管理</Link><Link to="/products/new"><Button type="primary">发布商品</Button></Link></nav>
       </Layout.Header>
       <Layout.Content className="app-content">{children}</Layout.Content>
     </Layout>

@@ -1,4 +1,4 @@
-import { Alert, Button, Form, Input, Typography } from "antd";
+import { Alert, Button, Form, Input } from "antd";
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, type Location, type To } from "react-router-dom";
 
@@ -43,25 +43,16 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="login-page">
-      <section className="login-visual" aria-label="StockStack 商品管理平台">
-        <div className="login-brand">
-          <img className="login-brand-logo" src="/brand/kuaishou-logo.png" alt="快手" />
-          <span className="login-product-name">StockStack 商品管理</span>
-        </div>
-        <div className="login-copy"><h1>让商品管理<br />更简单、更清晰</h1><p>从发布、库存到上下架状态，在一个工作台中高效完成。</p></div>
-      </section>
-      <section className="login-panel">
-      <div className="login-form-wrap">
-        <Typography.Title className="login-title" level={1}>管理员登录</Typography.Title>
-        <Typography.Text className="login-caption">欢迎回来，请登录 StockStack 管理后台</Typography.Text>
-
+    <main className="ss-login-page">
+      <div className="ss-login-card">
+        <span className="ss-login-brand">StockStack</span>
+        <h1 className="ss-login-title">管理员登录</h1>
+        <p className="ss-login-desc">登录后管理商品信息与发布状态</p>
         {errorMessage ? (
           <div ref={errorSummaryRef} tabIndex={-1} role="alert" style={{ marginBottom: 16 }}>
             <Alert type="error" showIcon role="presentation" message={errorMessage} />
           </div>
         ) : null}
-
         <Form<LoginRequest>
           layout="vertical"
           requiredMark={false}
@@ -69,17 +60,16 @@ export default function LoginPage() {
           onFinish={handleSubmit}
         >
           <Form.Item name="username" label="管理员账号" rules={[{ required: true, message: "请输入管理员账号" }]}>
-            <Input autoFocus autoComplete="username" disabled={submitting} />
+            <Input autoFocus autoComplete="username" size="large" disabled={submitting} placeholder="请输入管理员账号" />
           </Form.Item>
           <Form.Item name="password" label="密码" rules={[{ required: true, message: "请输入密码" }]}>
-            <Input.Password autoComplete="current-password" disabled={submitting} />
+            <Input.Password autoComplete="current-password" size="large" disabled={submitting} placeholder="请输入密码" />
           </Form.Item>
-          <Button type="primary" htmlType="submit" loading={submitting} block>
+          <Button type="primary" htmlType="submit" size="large" loading={submitting} block>
             登录
           </Button>
         </Form>
       </div>
-      </section>
     </main>
   );
 }
