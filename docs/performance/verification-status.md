@@ -9,9 +9,9 @@
 | `env UV_CACHE_DIR=/private/tmp/stockstack-uv-cache uv run --frozen pytest -q`（`backend/`） | 通过：137 passed、16 skipped、1 个依赖弃用 warning；未设置 `TEST_DATABASE_URL`，真实 PostgreSQL 集成用例被跳过。 |
 | `env UV_CACHE_DIR=/private/tmp/stockstack-uv-cache uv run --frozen ruff check .`（`backend/`） | 通过：`All checks passed!`。 |
 | `npm ci`（`frontend/`） | 通过：按 lockfile 安装 285 packages。 |
-| `npm test`（`frontend/`） | **未通过**：8 个 Vitest 文件中的 33 个测试通过，但 Vitest 又收集了 `e2e/product-management.spec.ts`，Playwright 的 `test.describe.configure()` 在 Vitest 上下文报错，最终为 1 failed suite。伴随的 jsdom `getComputedStyle` 与 MSW 未匹配请求为 stderr 警告，不是这次失败的直接原因。本收口任务不拥有测试配置或业务代码，未修改。 |
-| `npm run build`（`frontend/`） | 通过：TypeScript 与 Vite production build 完成；有 bundle 大于 500 kB 的提示。 |
-| `npx playwright test --list`（`frontend/`） | 通过用例发现：1 test in 1 file；仅列出，未执行浏览器 E2E。 |
+| `npm test -- --run`（`frontend/`） | 通过：Vitest 仅发现 8 个 unit test files，33 passed、0 failed suite。仍有既有的 jsdom `getComputedStyle` 和 MSW 未匹配请求 stderr；不影响退出码。此前 Vitest 误收集 Playwright E2E 文件的失败已通过独立 discovery 配置修复。 |
+| `npm run build`（`frontend/`） | 修复后重跑通过：TypeScript 与 Vite production build 完成；有 bundle 大于 500 kB 的提示。 |
+| `npx playwright test --list`（`frontend/`） | 修复后重跑通过：Playwright 独立发现 1 test in 1 file；仅列出，未执行浏览器 E2E。 |
 | `docker compose --env-file .env.example config` | 通过配置解析；使用的是包含 `CHANGE_ME` 的示例值，仅验证语法和插值，不代表容器已构建或启动。直接运行 `docker compose config` 因缺少 `.env` 的必填秘密而按设计失败。 |
 | `node --check loadtest/product-detail.js` 与 `node --check loadtest/redis-degraded.js` | 通过 JavaScript 语法检查；没有运行 k6。 |
 | `git diff --check` | 编辑后检查通过；提交前会再次运行。 |
