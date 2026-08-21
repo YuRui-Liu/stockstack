@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     rate_limit_requests: int = Field(default=100, ge=1)
     rate_limit_window_seconds: int = Field(default=60, ge=1)
     db_fallback_concurrency_limit: int = Field(default=10, ge=1)
+    db_fallback_wait_ms: int = Field(default=100, ge=1)
     cache_lock_ttl_ms: int = Field(default=3000, ge=100)
     cache_wait_budget_ms: int = Field(default=250, ge=0)
     redis_timeout_seconds: float = Field(default=0.2, gt=0)

@@ -188,3 +188,24 @@ async def test_product_attributes_in_place_change_is_persisted(db_session):
     reloaded = await db_session.get(ProductModel, product_id)
     assert reloaded is not None
     assert reloaded.attributes == {"weight_kg": 2}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "status,visible",
+    [
+        (ProductStatus.ON_SHELF, True),
+        (ProductStatus.OFF_SHELF, False),
+        (ProductStatus.PENALIZED, False),
+    ],
+)
+async def test_get_public_only_returns_on_shelf_products(db_session, status, visible):
+    repository = ProductRepository(db_session)
+    values = product_values()
+    values["status"] = status
+    product = await repository.create_with_images(values, image_values())
+    await db_session.commit()
+
+    found = await repository.get_public(product.id)
+
+    assert (found is not None) is visible

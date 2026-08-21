@@ -59,6 +59,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         _PublicRepository(),
         cache,
         db_concurrency=resolved_settings.db_fallback_concurrency_limit,
+        db_fallback_wait_ms=resolved_settings.db_fallback_wait_ms,
         wait_budget_ms=resolved_settings.cache_wait_budget_ms,
         redis_timeout_seconds=resolved_settings.redis_timeout_seconds,
     )

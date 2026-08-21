@@ -1,12 +1,17 @@
 import asyncio
 import json
+from datetime import UTC, datetime
+from decimal import Decimal
+from types import SimpleNamespace
 from uuid import UUID
 
 import pytest
 from uuid6 import uuid7
 
 from app.catalog.cache import ProductCache
+from app.catalog.domain import ProductStatus
 from app.catalog.public_service import PublicProductService
+from app.catalog.service import ProductService
 from app.core.errors import AppError
 
 
@@ -122,6 +127,57 @@ async def test_thirty_concurrent_misses_share_one_database_query():
 
 
 @pytest.mark.asyncio
+async def test_cancelling_one_waiter_keeps_shared_flight_alive_and_cleans_it():
+    gate = asyncio.Event()
+
+    class GatedRepository(FakeRepository):
+        async def get_public(self, _product_id):
+            self.calls += 1
+            await gate.wait()
+            return self.product
+
+    repo = GatedRepository(product_payload())
+    service = PublicProductService(repo, MemoryProductCache())
+    cancelled = asyncio.create_task(service.detail(PRODUCT_ID))
+    survivor = asyncio.create_task(service.detail(PRODUCT_ID))
+    await asyncio.sleep(0)
+    cancelled.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await cancelled
+    gate.set()
+
+    assert (await survivor).id == PRODUCT_ID
+    assert repo.calls == 1
+    assert service._flights == {}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("snapshot_after_lock,expected_db_calls", [(True, 0), (False, 1)])
+async def test_lock_contention_polling_uses_snapshot_or_bounded_fallback(
+    snapshot_after_lock, expected_db_calls
+):
+    class ContendedCache(MemoryProductCache):
+        def __init__(self):
+            super().__init__()
+            self.get_calls = 0
+
+        async def get(self, _product_id):
+            self.get_calls += 1
+            if snapshot_after_lock and self.get_calls >= 2:
+                return {"kind": "product", "product": product_payload(), "version": 1}
+            return None
+
+        async def acquire_lock(self, _product_id):
+            return None
+
+    repo = FakeRepository(product_payload())
+    service = PublicProductService(repo, ContendedCache(), wait_budget_ms=5)
+    result = await service.detail(PRODUCT_ID)
+    assert result.id == PRODUCT_ID
+    assert repo.calls == expected_db_calls
+
+
+@pytest.mark.asyncio
 async def test_redis_failure_uses_limited_db_fallback_and_db_failure_is_503():
     repo = FakeRepository(error=RuntimeError("db down"))
     service = PublicProductService(repo, MemoryProductCache(broken=True), db_concurrency=1)
@@ -150,6 +206,79 @@ async def test_redis_failure_bounds_concurrent_database_fallbacks():
     service = PublicProductService(repo, MemoryProductCache(broken=True), db_concurrency=2)
     await asyncio.gather(*(service.detail(uuid7()) for _ in range(8)))
     assert repo.peak == 2
+
+
+@pytest.mark.asyncio
+async def test_saturated_database_fallback_fails_fast_with_503():
+    gate = asyncio.Event()
+
+    class BlockingRepository(FakeRepository):
+        async def get_public(self, product_id):
+            await gate.wait()
+            payload = product_payload()
+            payload["id"] = str(product_id)
+            return payload
+
+    service = PublicProductService(
+        BlockingRepository(),
+        MemoryProductCache(broken=True),
+        db_concurrency=1,
+        db_fallback_wait_ms=5,
+    )
+    first = asyncio.create_task(service.detail(uuid7()))
+    await asyncio.sleep(0)
+    with pytest.raises(AppError) as error:
+        await service.detail(uuid7())
+    assert error.value.status_code == 503
+    gate.set()
+    await first
+
+
+@pytest.mark.asyncio
+async def test_status_commit_precedes_cache_delete_and_delete_failure_does_not_rollback():
+    class Session:
+        committed = False
+        rolled_back = False
+
+        async def commit(self):
+            self.committed = True
+
+        async def rollback(self):
+            self.rolled_back = True
+
+    class Cache:
+        calls = 0
+
+        async def delete(self, _product_id):
+            self.calls += 1
+            assert session.committed
+            if self.calls == 1:
+                raise ConnectionError("redis down")
+
+    now = datetime.now(UTC)
+    product_data = product_payload()
+    product_data.update(
+        id=PRODUCT_ID,
+        price_amount=Decimal("10.00"),
+        created_at=now,
+        updated_at=now,
+        images=[],
+    )
+    product = SimpleNamespace(**product_data)
+    session = Session()
+    cache = Cache()
+    service = ProductService(session, cache)
+    service.repository = SimpleNamespace(
+        batch_update_status=lambda *_args, **_kwargs: asyncio.sleep(0, result=[product]),
+        get_detail=lambda *_args: asyncio.sleep(0, result=product),
+    )
+
+    result = await service.update_status(PRODUCT_ID, 1, ProductStatus.ON_SHELF)
+    await asyncio.sleep(0.08)
+
+    assert result.id == PRODUCT_ID
+    assert session.committed and not session.rolled_back
+    assert cache.calls == 2
 
 
 @pytest.mark.asyncio

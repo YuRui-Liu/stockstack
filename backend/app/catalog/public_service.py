@@ -27,6 +27,7 @@ class PublicProductService:
         cache: ProductCache,
         *,
         db_concurrency: int = 10,
+        db_fallback_wait_ms: int = 100,
         wait_budget_ms: int = 250,
         redis_timeout_seconds: float = 0.2,
     ) -> None:
@@ -34,6 +35,7 @@ class PublicProductService:
         self.cache = cache
         self.wait_budget_ms = wait_budget_ms
         self.redis_timeout_seconds = redis_timeout_seconds
+        self.db_fallback_wait_ms = db_fallback_wait_ms
         self._db_slots = asyncio.Semaphore(db_concurrency)
         self._flights: dict[UUID, asyncio.Task[ProductView]] = {}
         self._flights_lock = asyncio.Lock()
@@ -114,8 +116,21 @@ class PublicProductService:
         if fallback_reason:
             DB_FALLBACKS.labels(fallback_reason).inc()
         try:
-            async with self._db_slots:
+            try:
+                await asyncio.wait_for(
+                    self._db_slots.acquire(), self.db_fallback_wait_ms / 1000
+                )
+            except TimeoutError as error:
+                DB_FALLBACKS.labels("capacity_timeout").inc()
+                raise AppError(
+                    "dependency_unavailable", "Product service unavailable", 503
+                ) from error
+            try:
                 product = await self.repository.get_public(product_id)
+            finally:
+                self._db_slots.release()
+        except AppError:
+            raise
         except Exception as error:
             DEPENDENCY_ERRORS.labels("postgres", "public_product").inc()
             raise AppError("dependency_unavailable", "Product service unavailable", 503) from error
