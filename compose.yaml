@@ -1,0 +1,106 @@
+name: stockstack
+
+x-api-environment: &api-environment
+  DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-stockstack}:${POSTGRES_PASSWORD:?copy .env.example to .env and set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-stockstack}
+  REDIS_URL: redis://redis:6379/0
+  JWT_SECRET: ${JWT_SECRET:?copy .env.example to .env and set JWT_SECRET}
+  ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+  ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:?generate an Argon2 hash as described in .env.example}
+  ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+  UPLOAD_ROOT: /app/uploads
+  CACHE_TTL_SECONDS: ${CACHE_TTL_SECONDS:-300}
+  CACHE_TTL_JITTER_SECONDS: ${CACHE_TTL_JITTER_SECONDS:-30}
+  NEGATIVE_CACHE_TTL_SECONDS: ${NEGATIVE_CACHE_TTL_SECONDS:-30}
+  RATE_LIMIT_REQUESTS: ${RATE_LIMIT_REQUESTS:-100}
+  RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
+  DB_FALLBACK_CONCURRENCY_LIMIT: ${DB_FALLBACK_CONCURRENCY_LIMIT:-10}
+
+x-api-image: &api-image
+  build:
+    context: ./backend
+  image: stockstack-api:local
+  environment: *api-environment
+
+services:
+  postgres:
+    image: postgres:16.10-alpine3.22
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-stockstack}
+      POSTGRES_USER: ${POSTGRES_USER:-stockstack}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?copy .env.example to .env and set POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7.4.5-alpine3.21
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    <<: *api-image
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: "no"
+
+  seed:
+    <<: *api-image
+    command: ["python", "/workspace/scripts/seed.py"]
+    volumes:
+      - ./scripts:/workspace/scripts:ro
+      - uploads:/app/uploads
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  api:
+    <<: *api-image
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  web:
+    build:
+      context: ./frontend
+    image: stockstack-web:local
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  postgres-data:
+  redis-data:
+  uploads:
