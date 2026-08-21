@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_validator
 
 from app.catalog.domain import DeliveryMethod, ProductStatus, ProductType, ReturnRule
 
@@ -15,9 +15,19 @@ class StrictRequestModel(BaseModel):
 
 
 class ProductImageInput(StrictRequestModel):
+    kind: Literal["main", "gallery"]
     url: str = Field(min_length=1)
-    alt_text: str = Field(default="", max_length=200)
-    sort_order: int = Field(default=0, ge=0)
+    size_bytes: int = Field(ge=1, le=2 * 1024 * 1024)
+    mime_type: Literal["image/jpeg", "image/png", "image/webp"]
+
+
+def _assert_image_collection(images: list[ProductImageInput]) -> None:
+    main_count = sum(image.kind == "main" for image in images)
+    gallery_count = sum(image.kind == "gallery" for image in images)
+    if main_count != 1:
+        raise ValueError("images must contain exactly one main image")
+    if gallery_count > 5:
+        raise ValueError("images must contain at most five gallery images")
 
 
 class ProductCreate(StrictRequestModel):
@@ -32,22 +42,32 @@ class ProductCreate(StrictRequestModel):
     return_rule: ReturnRule
     attributes: dict[str, Any]
     schema_version: int = Field(ge=1)
-    images: list[ProductImageInput] = Field(default_factory=list)
+    images: list[ProductImageInput]
+
+    @model_validator(mode="after")
+    def validate_images(self) -> "ProductCreate":
+        _assert_image_collection(self.images)
+        return self
 
 
 class ProductUpdate(StrictRequestModel):
     version: int = Field(ge=1)
-    title: str | None = Field(default=None, min_length=1, max_length=60)
-    short_title: str | None = Field(default=None, max_length=120)
-    description_html: str | None = Field(default=None, max_length=2000)
-    price_amount: Money | None = None
-    stock: int | None = Field(default=None, ge=0)
-    status: ProductStatus | None = None
-    delivery_method: DeliveryMethod | None = None
-    return_rule: ReturnRule | None = None
-    attributes: dict[str, Any] | None = None
-    schema_version: int | None = Field(default=None, ge=1)
-    images: list[ProductImageInput] | None = None
+    title: str = Field(min_length=1, max_length=60)
+    short_title: str = Field(max_length=120)
+    description_html: str = Field(max_length=2000)
+    price_amount: Money
+    stock: int = Field(ge=0)
+    status: ProductStatus
+    delivery_method: DeliveryMethod
+    return_rule: ReturnRule
+    attributes: dict[str, Any]
+    schema_version: int = Field(ge=1)
+    images: list[ProductImageInput]
+
+    @model_validator(mode="after")
+    def validate_images(self) -> "ProductUpdate":
+        _assert_image_collection(self.images)
+        return self
 
 
 class ProductStatusUpdate(StrictRequestModel):
