@@ -30,22 +30,22 @@ export default function ProductDetailPage() {
   if (error) return <Alert role="alert" type="error" showIcon message={error} style={{ margin: 24 }} />;
   if (!product || product.id !== id) return <Spin aria-label="加载商品详情" style={{ margin: 24 }} />;
 
-  return <main style={{ maxWidth: 1000, margin: "24px auto" }}>
-    <Card>
-      <Space style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
-        <Typography.Title level={1} style={{ margin: 0 }}>{product.title}</Typography.Title>
+  return <main className="page-container page-container--detail">
+    <Card className="surface-card detail-card">
+      <div className="detail-header">
+        <div><Typography.Title className="detail-title" level={1}>{product.title}</Typography.Title><Typography.Text className="page-subtitle">查看商品完整信息与当前销售状态</Typography.Text></div>
         <Space>
           <Link to="/products"><Button>返回商品列表</Button></Link>
           <Link to={`/products/${product.id}/edit`}><Button type="primary">编辑商品</Button></Link>
         </Space>
-      </Space>
+      </div>
       <Descriptions bordered column={2}>
         <Descriptions.Item label="商品 ID" span={2}>{product.id}</Descriptions.Item>
         <Descriptions.Item label="短标题">{product.short_title || "-"}</Descriptions.Item>
         <Descriptions.Item label="商品类型">{productTypeLabels[product.product_type]}</Descriptions.Item>
         <Descriptions.Item label="价格">{product.price_amount}</Descriptions.Item>
         <Descriptions.Item label="库存">{product.stock}</Descriptions.Item>
-        <Descriptions.Item label="状态"><Tag>{statusLabels[product.status]}</Tag></Descriptions.Item>
+        <Descriptions.Item label="状态"><Tag className={`status-tag status-tag--${product.status}`}>{statusLabels[product.status]}</Tag></Descriptions.Item>
         <Descriptions.Item label="版本">{product.version}</Descriptions.Item>
         <Descriptions.Item label="配送方式">{product.delivery_method}</Descriptions.Item>
         <Descriptions.Item label="退货规则">{product.return_rule}</Descriptions.Item>

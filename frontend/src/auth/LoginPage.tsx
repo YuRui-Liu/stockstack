@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Form, Input, Space, Typography } from "antd";
+import { Alert, Button, Form, Input, Typography } from "antd";
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, type Location, type To } from "react-router-dom";
 
@@ -43,15 +43,18 @@ export default function LoginPage() {
   };
 
   return (
-    <main
-      style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24, background: "#f5f7fa" }}
-    >
-      <Card style={{ width: "100%", maxWidth: 400 }}>
-        <Space direction="vertical" size={4} style={{ width: "100%", marginBottom: 24 }}>
-          <Typography.Text strong style={{ color: "#1677ff" }}>StockStack</Typography.Text>
-          <Typography.Title level={1} style={{ fontSize: 28, margin: 0 }}>管理员登录</Typography.Title>
-          <Typography.Text type="secondary">登录后管理商品信息与发布状态</Typography.Text>
-        </Space>
+    <main className="login-page">
+      <section className="login-visual" aria-label="StockStack 商品管理平台">
+        <div className="login-brand">
+          <img className="login-brand-logo" src="/brand/kuaishou-logo.png" alt="快手" />
+          <span className="login-product-name">StockStack 商品管理</span>
+        </div>
+        <div className="login-copy"><h1>让商品管理<br />更简单、更清晰</h1><p>从发布、库存到上下架状态，在一个工作台中高效完成。</p></div>
+      </section>
+      <section className="login-panel">
+      <div className="login-form-wrap">
+        <Typography.Title className="login-title" level={1}>管理员登录</Typography.Title>
+        <Typography.Text className="login-caption">欢迎回来，请登录 StockStack 管理后台</Typography.Text>
 
         {errorMessage ? (
           <div ref={errorSummaryRef} tabIndex={-1} role="alert" style={{ marginBottom: 16 }}>
@@ -75,7 +78,8 @@ export default function LoginPage() {
             登录
           </Button>
         </Form>
-      </Card>
+      </div>
+      </section>
     </main>
   );
 }

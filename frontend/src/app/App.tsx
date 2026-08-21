@@ -21,12 +21,16 @@ function ProductEditor() {
 
 function ProductsLayout({ children }: { children: React.ReactNode }) {
   return (
-    <Layout style={{ minHeight: "100vh" }}>
-      <Layout.Header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #d9dfe8" }}>
-        <Link to="/products"><Typography.Text strong style={{ fontSize: 18 }}>StockStack</Typography.Text></Link>
-        <Link to="/products/new"><Button type="primary">发布商品</Button></Link>
+    <Layout className="app-shell">
+      <Layout.Header className="app-header">
+        <Link to="/products" className="app-brand" aria-label="快手 StockStack 商品管理首页">
+          <img className="app-brand-logo" src="/brand/kuaishou-logo.png" alt="快手" />
+          <span className="app-brand-divider" aria-hidden="true" />
+          <Typography.Text className="app-brand-name">StockStack</Typography.Text>
+        </Link>
+        <nav className="app-header-nav" aria-label="主导航"><Link to="/products" className="app-nav-link">商品管理</Link><Link to="/products/new"><Button type="primary">发布商品</Button></Link></nav>
       </Layout.Header>
-      <Layout.Content>{children}</Layout.Content>
+      <Layout.Content className="app-content">{children}</Layout.Content>
     </Layout>
   );
 }

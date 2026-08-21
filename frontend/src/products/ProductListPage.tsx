@@ -13,6 +13,8 @@ const productTypeLabels: Record<ProductType, string> = {
   creative: "创意商品",
 };
 
+const actionTextStyle = { fontSize: 14, fontWeight: 400 } as const;
+
 function positiveInteger(value: string | null, fallback: number) {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
@@ -153,48 +155,47 @@ export default function ProductListPage() {
   };
 
   const columns = [
-    { title: "主图", key: "image", render: (_: unknown, product: ProductView) => {
+    { title: "主图", key: "image", width: 80, render: (_: unknown, product: ProductView) => {
       const main = product.images.find((image) => image.kind === "main");
-      return main ? <Image width={48} height={48} src={main.url} alt={`${product.title}主图`} preview={false} /> : "无主图";
+      return main ? <Image className="product-image" width={48} height={48} src={main.url} alt={`${product.title}主图`} preview={false} /> : "无主图";
     } },
-    { title: "商品 ID", dataIndex: "id", key: "id" },
-    { title: "标题", dataIndex: "title", key: "title" },
+    { title: "商品 ID", dataIndex: "id", key: "id", render: (value: string) => <Typography.Text className="product-id" title={value}>{value}</Typography.Text> },
+    { title: "标题", dataIndex: "title", key: "title", render: (value: string) => <Typography.Text className="product-title">{value}</Typography.Text> },
     { title: "类型", dataIndex: "product_type", key: "product_type", render: (value: ProductType) => productTypeLabels[value] },
     { title: "价格", dataIndex: "price_amount", key: "price_amount", render: (value: string) => value },
     { title: "库存", dataIndex: "stock", key: "stock" },
-    { title: "状态", dataIndex: "status", key: "status", render: (value: ProductStatus) => <Tag>{statusLabels[value]}</Tag> },
+    { title: "状态", dataIndex: "status", key: "status", render: (value: ProductStatus) => <Tag className={`status-tag status-tag--${value}`}>{statusLabels[value]}</Tag> },
     { title: "更新时间", dataIndex: "updated_at", key: "updated_at", render: (value: string) => new Date(value).toLocaleString("zh-CN", { hour12: false }) },
-    { title: "操作", key: "actions", render: (_: unknown, product: ProductView) => <Space wrap>
-      <Link to={`/products/${product.id}`}>详情</Link>
-      <Link to={`/products/${product.id}/edit`}>编辑</Link>
-      {actionsForStatus(product.status).map((action) => <Button key={action.target} type="link" disabled={pendingIds.has(product.id)} loading={pendingIds.has(product.id)} onClick={() => runAction(product, action)}>{action.label}</Button>)}
-    </Space> },
+    { title: "操作", key: "actions", fixed: "right" as const, width: 280, render: (_: unknown, product: ProductView) => <div className="product-actions">
+      <Link style={actionTextStyle} to={`/products/${product.id}`}>详情</Link>
+      <Link style={actionTextStyle} to={`/products/${product.id}/edit`}>编辑</Link>
+      {actionsForStatus(product.status).map((action) => <Button style={actionTextStyle} key={action.target} type="link" disabled={pendingIds.has(product.id)} loading={pendingIds.has(product.id)} onClick={() => runAction(product, action)}>{action.label}</Button>)}
+    </div> },
   ];
 
   const changeTable = (pagination: TablePaginationConfig) => {
     writeParams({ ...params, page: pagination.pageSize === params.page_size ? pagination.current ?? 1 : 1, page_size: pagination.pageSize ?? 20 });
   };
 
-  return <main style={{ maxWidth: 1440, margin: "0 auto", padding: 24 }}>
-    <Typography.Title level={1} style={{ margin: "0 0 16px" }}>商品管理</Typography.Title>
-    <Card>
-      <Form form={form} layout="inline" onFinish={(values) => writeParams({ ...params, ...values, query: values.query?.trim() || undefined, page: 1 })}>
-        <Form.Item name="query" label="商品关键词"><Input allowClear /></Form.Item>
+  return <main className="page-container">
+    <header className="page-heading"><Typography.Title className="page-title" level={1}>商品管理</Typography.Title><Typography.Text className="page-subtitle">统一管理商品信息、库存及上下架状态</Typography.Text></header>
+    <Card className="surface-card">
+      <Form className="filter-form" form={form} layout="inline" onFinish={(values) => writeParams({ ...params, ...values, query: values.query?.trim() || undefined, page: 1 })}>
+        <Form.Item name="query" label="商品关键词"><Input className="filter-keyword" allowClear placeholder="请输入商品标题或 ID" /></Form.Item>
         <Form.Item name="product_type" label="商品类型"><Select allowClear style={{ width: 140 }} options={Object.entries(productTypeLabels).map(([value, label]) => ({ value, label }))} /></Form.Item>
         <Form.Item name="status" label="商品状态"><Select allowClear style={{ width: 120 }} options={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))} /></Form.Item>
         <Button type="primary" htmlType="submit">查询</Button>
       </Form>
       {error && <Alert role="alert" type="error" showIcon message={error} style={{ marginTop: 16 }} />}
-      <Space style={{ margin: "16px 0" }}>
-        {batchStatusActions.map((action) => <Button key={action.target} disabled={!selectedIds.length || batchPending} loading={batchPending} onClick={() => void batchChange(action.target)}>{action.label}</Button>)}
-        <Select aria-label="每页条数" value={params.page_size} style={{ width: 120 }} onChange={(pageSize) => writeParams({ ...params, page: 1, page_size: pageSize })} options={[10, 20, 50, 100].map((value) => ({ value, label: `${value} 条/页` }))} />
-      </Space>
+      <div className="table-toolbar"><Space>{batchStatusActions.map((action) => <Button key={action.target} disabled={!selectedIds.length || batchPending} loading={batchPending} onClick={() => void batchChange(action.target)}>{action.label}</Button>)}<Typography.Text className="selection-hint">{selectedIds.length ? `已选择 ${selectedIds.length} 项` : "选择商品后可批量操作"}</Typography.Text></Space><Select aria-label="每页条数" value={params.page_size} style={{ width: 120 }} onChange={(pageSize) => writeParams({ ...params, page: 1, page_size: pageSize })} options={[10, 20, 50, 100].map((value) => ({ value, label: `${value} 条/页` }))} /></div>
       <Table<ProductView>
+        className="product-table"
         rowKey="id"
         loading={loading}
         locale={{ emptyText: loading ? "加载中" : "暂无商品" }}
         dataSource={products}
         columns={columns}
+        scroll={{ x: 1500 }}
         rowSelection={{ selectedRowKeys: selectedIds, onChange: setSelectedIds }}
         pagination={{ current: params.page, pageSize: params.page_size, total, showSizeChanger: false }}
         onChange={changeTable}

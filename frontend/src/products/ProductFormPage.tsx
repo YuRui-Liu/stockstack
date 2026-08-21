@@ -99,8 +99,8 @@ export default function ProductFormPage({ productId, initialImages = noImages, o
   const schemaError = fieldSchema ? validateRenderableSchema(fieldSchema) : null;
 
   if (!initialized) return <Spin aria-label="加载商品表单" />;
-  return <Card style={{ maxWidth: 880, margin: "24px auto" }}>
-    <Typography.Title level={2}>{productId ? "编辑商品" : "发布商品"}</Typography.Title>
+  return <main className="page-container page-container--narrow"><Card className="surface-card form-card">
+    <header className="form-header"><Typography.Title className="page-title" level={2}>{productId ? "编辑商品" : "发布商品"}</Typography.Title><Typography.Text className="page-subtitle">{productId ? "更新商品基础信息与销售配置" : "填写商品信息，完成后即可在商品列表中管理"}</Typography.Text></header>
     {error && <Alert role="alert" type="error" showIcon message={error} style={{ marginBottom: 16 }} />}
     <Form form={form} layout="vertical" onFinish={(values) => void submit(values)} onFinishFailed={({ errorFields }) => setError(`请检查必填项：${errorFields.map((field) => field.name.join(".")).join("、")}`)} requiredMark={false}>
       <Form.Item name="product_type" label="商品类型" rules={[{ required: true }]}><Select disabled={!!productId} options={typeOptions} onChange={(value) => void changeType(value)} /></Form.Item>
@@ -119,7 +119,7 @@ export default function ProductFormPage({ productId, initialImages = noImages, o
       <Form.Item name="status" label="状态" rules={[{ required: true }]} extra={productId ? "状态请在商品管理列表中操作" : undefined}><Select disabled={!!productId} options={[{ value: "off_shelf", label: "下架" }, { value: "on_shelf", label: "上架" }, { value: "penalized", label: "处罚中" }]} /></Form.Item>
       {fieldSchema && <DynamicFields fieldSchema={fieldSchema} />}
       <Form.Item name="images" label="商品图片" rules={[{ validator: (_, value: ProductImageInput[] = []) => value.filter((image) => image.kind === "main").length === 1 ? Promise.resolve() : Promise.reject(new Error("请上传一张主图")) }]}><ImageFields onUploadingChange={setUploadsPending} /></Form.Item>
-      <Button type="primary" htmlType="submit" loading={loading || saving || uploadsPending} disabled={!fieldSchema || !!schemaError || saving || uploadsPending}>{productId ? "保存修改" : "发布商品"}</Button>
+      <div className="form-submit-bar"><Button type="primary" htmlType="submit" loading={loading || saving || uploadsPending} disabled={!fieldSchema || !!schemaError || saving || uploadsPending}>{productId ? "保存修改" : "发布商品"}</Button></div>
     </Form>
-  </Card>;
+  </Card></main>;
 }

@@ -110,6 +110,10 @@ describe("ProductListPage", () => {
     expect(row).toHaveTextContent("已下架");
     expect(within(row).getByRole("link", { name: "详情" })).toHaveAttribute("href", `/products/${offShelfProduct.id}`);
     expect(within(row).getByRole("link", { name: "编辑" })).toHaveAttribute("href", `/products/${offShelfProduct.id}/edit`);
+    expect(within(row).getByRole("link", { name: "详情" })).toHaveStyle({ fontSize: "14px", fontWeight: "400" });
+    expect(within(row).getByRole("button", { name: "上架" })).toHaveStyle({ fontSize: "14px", fontWeight: "400" });
+    expect(screen.getByRole("columnheader", { name: "操作" })).toHaveClass("ant-table-cell-fix-right");
+    expect(within(row).getByRole("link", { name: "详情" }).closest("td")).toHaveClass("ant-table-cell-fix-right");
     expect(screen.getByRole("row", { name: /处罚中的示例商品/ })).not.toHaveTextContent("恢复");
 
     fireEvent.click(within(row).getByRole("button", { name: "上架" }));
