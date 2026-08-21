@@ -16,6 +16,15 @@ class DenyingCache:
         return False, 100
 
 
+class CapturingCache:
+    def __init__(self):
+        self.ips = []
+
+    async def rate_limit(self, client_ip, **_kwargs):
+        self.ips.append(client_ip)
+        return True, 1
+
+
 def test_public_product_requires_uuid7_and_does_not_require_admin(client):
     client.app.dependency_overrides[get_public_service] = lambda: MissingService()
 
@@ -34,3 +43,27 @@ def test_public_rate_limit_returns_retry_after(client):
     assert response.headers["retry-after"] == str(
         client.app.state.settings.rate_limit_window_seconds
     )
+
+
+def test_proxy_headers_are_ignored_unless_explicitly_trusted(client):
+    cache = CapturingCache()
+    client.app.state.product_cache = cache
+    client.app.dependency_overrides[get_public_service] = lambda: MissingService()
+
+    client.get(
+        f"/api/v1/public/products/{PRODUCT_ID}",
+        headers={"X-Forwarded-For": "198.51.100.10"},
+    )
+    direct_ip = cache.ips[-1]
+    assert direct_ip != "198.51.100.10"
+
+    client.app.state.settings.trust_proxy_headers = True
+    client.get(
+        f"/api/v1/public/products/{PRODUCT_ID}",
+        headers={"X-Forwarded-For": "198.51.100.10, 10.0.0.1"},
+    )
+    client.get(
+        f"/api/v1/public/products/{PRODUCT_ID}",
+        headers={"X-Forwarded-For": "198.51.100.11"},
+    )
+    assert cache.ips[-2:] == ["198.51.100.10", "198.51.100.11"]

@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,9 +22,17 @@ class Settings(BaseSettings):
     rate_limit_window_seconds: int = Field(default=60, ge=1)
     db_fallback_concurrency_limit: int = Field(default=10, ge=1)
     db_fallback_wait_ms: int = Field(default=100, ge=1)
+    db_query_timeout_ms: int = Field(default=500, ge=1)
     cache_lock_ttl_ms: int = Field(default=3000, ge=100)
     cache_wait_budget_ms: int = Field(default=250, ge=0)
     redis_timeout_seconds: float = Field(default=0.2, gt=0)
+    trust_proxy_headers: bool = False
+
+    @model_validator(mode="after")
+    def validate_timeouts(self) -> "Settings":
+        if self.db_query_timeout_ms >= self.cache_lock_ttl_ms:
+            raise ValueError("db_query_timeout_ms must be less than cache_lock_ttl_ms")
+        return self
 
 
 @lru_cache

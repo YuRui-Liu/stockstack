@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import time
 from typing import Annotated
 from uuid import UUID
@@ -34,10 +35,21 @@ def _uuid7(value: str) -> UUID:
     return parsed
 
 
+def _client_ip(request: Request) -> str:
+    direct = request.client.host if request.client else "unknown"
+    if not request.app.state.settings.trust_proxy_headers:
+        return direct
+    forwarded = request.headers.get("X-Forwarded-For", "").split(",", 1)[0].strip()
+    try:
+        return str(ipaddress.ip_address(forwarded))
+    except ValueError:
+        return direct
+
+
 async def enforce_rate_limit(request: Request) -> None:
     settings = request.app.state.settings
     cache = request.app.state.product_cache
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = _client_ip(request)
     try:
         allowed, _count = await asyncio.wait_for(
             cache.rate_limit(

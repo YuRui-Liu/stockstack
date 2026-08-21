@@ -60,6 +60,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         cache,
         db_concurrency=resolved_settings.db_fallback_concurrency_limit,
         db_fallback_wait_ms=resolved_settings.db_fallback_wait_ms,
+        db_query_timeout_ms=resolved_settings.db_query_timeout_ms,
         wait_budget_ms=resolved_settings.cache_wait_budget_ms,
         redis_timeout_seconds=resolved_settings.redis_timeout_seconds,
     )

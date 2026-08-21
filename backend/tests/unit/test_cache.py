@@ -86,6 +86,9 @@ class MemoryProductCache:
     async def put_missing(self, _product_id):
         self.value = {"kind": "missing"}
 
+    async def delete(self, _product_id):
+        self.value = None
+
 
 def product_payload():
     return {
@@ -104,6 +107,25 @@ async def test_cache_hit_does_not_query_database():
     result = await PublicProductService(repo, cache).detail(PRODUCT_ID)
     assert result.id == PRODUCT_ID
     assert repo.calls == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "cached",
+    [
+        {"kind": "surprise", "source": "untrusted"},
+        {"kind": "product", "product": {"id": str(PRODUCT_ID)}, "version": 1},
+    ],
+)
+async def test_invalid_cache_value_is_deleted_and_treated_as_miss(cached):
+    repo = FakeRepository(product_payload())
+    cache = MemoryProductCache(cached)
+    service = PublicProductService(repo, cache)
+
+    result = await service.detail(PRODUCT_ID)
+
+    assert result.id == PRODUCT_ID
+    assert repo.calls == 1
 
 
 @pytest.mark.asyncio
@@ -232,6 +254,28 @@ async def test_saturated_database_fallback_fails_fast_with_503():
     assert error.value.status_code == 503
     gate.set()
     await first
+
+
+@pytest.mark.asyncio
+async def test_database_timeout_cleans_flight_and_allows_retry():
+    class HangingOnceRepository(FakeRepository):
+        async def get_public(self, _product_id):
+            self.calls += 1
+            if self.calls == 1:
+                await asyncio.Event().wait()
+            return self.product
+
+    repo = HangingOnceRepository(product_payload())
+    service = PublicProductService(
+        repo, MemoryProductCache(), db_query_timeout_ms=5
+    )
+
+    with pytest.raises(AppError) as error:
+        await service.detail(PRODUCT_ID)
+    assert error.value.status_code == 503
+    assert service._flights == {}
+    assert (await service.detail(PRODUCT_ID)).id == PRODUCT_ID
+    assert repo.calls == 2
 
 
 @pytest.mark.asyncio

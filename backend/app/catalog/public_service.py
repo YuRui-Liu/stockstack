@@ -4,7 +4,7 @@ import asyncio
 from typing import Any, Protocol
 from uuid import UUID
 
-from app.catalog.cache import ProductCache
+from app.catalog.cache import InvalidCacheValue, ProductCache
 from app.catalog.schemas import ProductView
 from app.catalog.service import _view
 from app.core.errors import AppError
@@ -28,6 +28,7 @@ class PublicProductService:
         *,
         db_concurrency: int = 10,
         db_fallback_wait_ms: int = 100,
+        db_query_timeout_ms: int = 500,
         wait_budget_ms: int = 250,
         redis_timeout_seconds: float = 0.2,
     ) -> None:
@@ -36,6 +37,7 @@ class PublicProductService:
         self.wait_budget_ms = wait_budget_ms
         self.redis_timeout_seconds = redis_timeout_seconds
         self.db_fallback_wait_ms = db_fallback_wait_ms
+        self.db_query_timeout_ms = db_query_timeout_ms
         self._db_slots = asyncio.Semaphore(db_concurrency)
         self._flights: dict[UUID, asyncio.Task[ProductView]] = {}
         self._flights_lock = asyncio.Lock()
@@ -65,11 +67,39 @@ class PublicProductService:
             value = await asyncio.wait_for(
                 self.cache.get(product_id), self.redis_timeout_seconds
             )
-            CACHE_RESULTS.labels("miss" if value is None else value["kind"]).inc()
-            return value
+        except InvalidCacheValue:
+            return await self._discard_invalid_cache(product_id)
         except Exception:  # noqa: BLE001 -- any cache failure must degrade safely
             DEPENDENCY_ERRORS.labels("redis", "cache_get").inc()
             return None
+        if value is None:
+            CACHE_RESULTS.labels("miss").inc()
+            return None
+        try:
+            if value == {"kind": "missing"}:
+                CACHE_RESULTS.labels("missing").inc()
+                return value
+            if set(value) != {"kind", "product", "version"} or value["kind"] != "product":
+                raise ValueError("invalid cache envelope")
+            version = value["version"]
+            if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+                raise ValueError("invalid cache version")
+            product = ProductView.model_validate(value["product"])
+            if product.id != product_id or product.version != version:
+                raise ValueError("cached product identity/version mismatch")
+        except (KeyError, TypeError, ValueError):
+            return await self._discard_invalid_cache(product_id)
+        CACHE_RESULTS.labels("product").inc()
+        return {"kind": "product", "product": product.model_dump(mode="json"), "version": version}
+
+    async def _discard_invalid_cache(self, product_id: UUID) -> None:
+        CACHE_RESULTS.labels("invalid").inc()
+        try:
+            await asyncio.wait_for(
+                self.cache.delete(product_id), self.redis_timeout_seconds
+            )
+        except Exception:  # noqa: BLE001 -- invalid cache cleanup is best effort
+            DEPENDENCY_ERRORS.labels("redis", "cache_delete_invalid").inc()
 
     @staticmethod
     def _cached_view(value: dict[str, Any]) -> ProductView:
@@ -126,7 +156,10 @@ class PublicProductService:
                     "dependency_unavailable", "Product service unavailable", 503
                 ) from error
             try:
-                product = await self.repository.get_public(product_id)
+                product = await asyncio.wait_for(
+                    self.repository.get_public(product_id),
+                    self.db_query_timeout_ms / 1000,
+                )
             finally:
                 self._db_slots.release()
         except AppError:

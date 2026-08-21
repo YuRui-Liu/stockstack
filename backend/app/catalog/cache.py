@@ -14,6 +14,10 @@ class RedisProtocol(Protocol):
     async def eval(self, script: str, numkeys: int, *args: Any) -> Any: ...
 
 
+class InvalidCacheValue(ValueError):
+    pass
+
+
 RELEASE_LOCK_LUA = """
 if redis.call('get', KEYS[1]) == ARGV[1] then
   return redis.call('del', KEYS[1])
@@ -59,9 +63,15 @@ class ProductCache:
         raw = await self.redis.get(self.key(product_id))
         if raw is None:
             return None
-        if isinstance(raw, bytes):
-            raw = raw.decode()
-        return json.loads(raw)
+        try:
+            if isinstance(raw, bytes):
+                raw = raw.decode()
+            decoded = json.loads(raw)
+        except (TypeError, UnicodeError, json.JSONDecodeError) as error:
+            raise InvalidCacheValue("invalid cached JSON") from error
+        if not isinstance(decoded, dict):
+            raise InvalidCacheValue("cached value must be an object")
+        return decoded
 
     async def put_product(self, product_id: UUID, product: dict[str, Any]) -> None:
         jitter = secrets.randbelow(self.jitter_seconds + 1) if self.jitter_seconds else 0
