@@ -1,6 +1,6 @@
-import os
 from collections.abc import AsyncIterator
 
+from fastapi import Request
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -9,17 +9,15 @@ from sqlalchemy.ext.asyncio import (
 )
 
 
-def build_engine(database_url: str | None = None) -> AsyncEngine:
-    url = database_url or os.getenv(
-        "DATABASE_URL", "postgresql+asyncpg://localhost:5432/stockstack"
+def create_engine_and_session_factory(
+    database_url: str,
+) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
+    engine = create_async_engine(
+        database_url, pool_size=5, max_overflow=5, pool_pre_ping=True
     )
-    return create_async_engine(url, pool_size=5, max_overflow=5, pool_pre_ping=True)
+    return engine, async_sessionmaker(engine, expire_on_commit=False)
 
 
-engine = build_engine()
-SessionFactory = async_sessionmaker(engine, expire_on_commit=False)
-
-
-async def get_session() -> AsyncIterator[AsyncSession]:
-    async with SessionFactory() as session:
+async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
+    async with request.app.state.session_factory() as session:
         yield session

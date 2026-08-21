@@ -13,12 +13,14 @@ class AppError(Exception):
         message: str,
         status_code: int,
         field_errors: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
         self.status_code = status_code
         self.field_errors = field_errors or {}
+        self.headers = headers or {}
 
 
 def _request_id(request: Request) -> str:
@@ -35,7 +37,7 @@ def _response(request: Request, error: AppError) -> JSONResponse:
             "field_errors": error.field_errors,
             "request_id": request_id,
         },
-        headers={"X-Request-ID": request_id},
+        headers={**error.headers, "X-Request-ID": request_id},
     )
 
 

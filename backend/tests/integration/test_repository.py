@@ -4,14 +4,10 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from app.catalog.domain import (
-    IllegalProductStatusTransition,
-    ProductStatus,
-    ProductType,
-)
+from app.catalog.domain import ProductStatus, ProductType
 from app.catalog.models import ProductFieldSchemaModel, ProductImageModel, ProductModel
 from app.catalog.repository import (
-    DuplicateProductId,
+    BatchUpdateError,
     ProductRepository,
     SchemaConflict,
     VersionConflict,
@@ -122,15 +118,12 @@ async def test_batch_status_update_is_all_or_nothing(db_session, failure):
     )
     await db_session.commit()
 
-    expected_error = (
-        VersionConflict
-        if failure == "version_conflict"
-        else IllegalProductStatusTransition
-    )
     versions = [(first.id, 1), (second.id, 99 if failure == "version_conflict" else 1)]
-    with pytest.raises(expected_error):
+    with pytest.raises(BatchUpdateError) as captured:
         async with db_session.begin():
             await repository.batch_update_status(versions, ProductStatus.ON_SHELF)
+    failed_id = second.id if failure == "version_conflict" else first.id
+    assert captured.value.failures == {failed_id: failure}
 
     statuses = (
         (
@@ -162,12 +155,13 @@ async def test_batch_status_update_rejects_duplicate_product_ids(
     product = await repository.create_with_images(product_values(), image_values())
     await db_session.commit()
 
-    with pytest.raises(DuplicateProductId):
+    with pytest.raises(BatchUpdateError) as captured:
         async with db_session.begin():
             await repository.batch_update_status(
                 [(product.id, 1), (product.id, duplicate_version)],
                 ProductStatus.ON_SHELF,
             )
+    assert captured.value.failures == {product.id: "duplicate_product_id"}
 
     await db_session.refresh(product)
     assert product.status == ProductStatus.OFF_SHELF.value

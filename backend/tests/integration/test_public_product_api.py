@@ -2,6 +2,7 @@ from uuid import UUID
 
 from app.catalog.public_router import get_public_service
 from app.core.errors import AppError
+from app.core.metrics import PUBLIC_REQUESTS
 
 PRODUCT_ID = UUID("018f3f4e-7b2c-7abc-8def-123456789abc")
 
@@ -38,11 +39,19 @@ def test_public_product_requires_uuid7_and_does_not_require_admin(client):
 
 def test_public_rate_limit_returns_retry_after(client):
     client.app.state.product_cache = DenyingCache()
+    before = PUBLIC_REQUESTS.labels("429")._value.get()
     response = client.get(f"/api/v1/public/products/{PRODUCT_ID}")
     assert response.status_code == 429
+    assert response.json() == {
+        "code": "RATE_LIMITED",
+        "message": "Too many requests",
+        "field_errors": {},
+        "request_id": response.headers["x-request-id"],
+    }
     assert response.headers["retry-after"] == str(
         client.app.state.settings.rate_limit_window_seconds
     )
+    assert PUBLIC_REQUESTS.labels("429")._value.get() == before + 1
 
 
 def test_proxy_headers_are_ignored_unless_explicitly_trusted(client):

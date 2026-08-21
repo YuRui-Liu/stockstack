@@ -17,17 +17,24 @@ from app.catalog.router import router as catalog_router
 from app.catalog.service import _INVALIDATION_TASKS
 from app.core.config import Settings, get_settings
 from app.core.errors import install_error_handling
-from app.db.session import SessionFactory, engine
+from app.core.metrics import PublicProductMetricsMiddleware
+from app.db.session import create_engine_and_session_factory
 
 
 class _PublicRepository:
+    def __init__(self, session_factory) -> None:
+        self.session_factory = session_factory
+
     async def get_public(self, product_id: UUID):
-        async with SessionFactory() as session:
+        async with self.session_factory() as session:
             return await ProductRepository(session).get_public(product_id)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     resolved_settings = settings or get_settings()
+    engine, session_factory = create_engine_and_session_factory(
+        resolved_settings.database_url
+    )
     upload_root = Path(resolved_settings.upload_root)
     upload_root.mkdir(mode=0o700, parents=True, exist_ok=True)
     redis = Redis.from_url(
@@ -50,13 +57,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if _INVALIDATION_TASKS:
             await asyncio.gather(*tuple(_INVALIDATION_TASKS), return_exceptions=True)
         await redis.aclose()
-        await engine.dispose()
+        await _application.state.engine.dispose()
 
     application = FastAPI(title="StockStack Product Management", lifespan=lifespan)
     application.state.settings = resolved_settings
+    application.state.engine = engine
+    application.state.session_factory = session_factory
     application.state.product_cache = cache
     application.state.public_product_service = PublicProductService(
-        _PublicRepository(),
+        _PublicRepository(session_factory),
         cache,
         db_concurrency=resolved_settings.db_fallback_concurrency_limit,
         db_fallback_wait_ms=resolved_settings.db_fallback_wait_ms,
@@ -66,6 +75,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     application.dependency_overrides[get_settings] = lambda: application.state.settings
     install_error_handling(application)
+    application.add_middleware(PublicProductMetricsMiddleware)
     application.include_router(auth_router)
     application.include_router(catalog_router)
     application.include_router(public_router)

@@ -225,6 +225,9 @@ async def test_status_transitions_and_failed_batch_roll_back(
         },
     )
     assert failed.status_code == 409
+    assert failed.json()["field_errors"] == {
+        second["id"]: ["version_conflict"],
+    }
     unchanged = await client.get(f"/api/v1/products/{second['id']}")
     assert unchanged.json()["status"] == "off_shelf"
     assert unchanged.json()["version"] == 3

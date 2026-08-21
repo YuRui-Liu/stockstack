@@ -2,19 +2,16 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
-import time
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 
 from app.catalog.public_service import PublicProductService
 from app.catalog.schemas import ProductView
 from app.core.errors import AppError
 from app.core.metrics import (
     DEPENDENCY_ERRORS,
-    PUBLIC_LATENCY,
-    PUBLIC_REQUESTS,
     RATE_LIMIT_RESULTS,
 )
 
@@ -65,9 +62,10 @@ async def enforce_rate_limit(request: Request) -> None:
         return
     if not allowed:
         RATE_LIMIT_RESULTS.labels("rejected").inc()
-        raise HTTPException(
-            status_code=429,
-            detail="Too many requests",
+        raise AppError(
+            "RATE_LIMITED",
+            "Too many requests",
+            429,
             headers={"Retry-After": str(settings.rate_limit_window_seconds)},
         )
     RATE_LIMIT_RESULTS.labels("allowed").inc()
@@ -82,13 +80,4 @@ async def public_product_detail(
     product_id: str,
     service: Annotated[PublicProductService, Depends(get_public_service)],
 ) -> ProductView:
-    started = time.monotonic()
-    try:
-        result = await service.detail(_uuid7(product_id))
-        PUBLIC_REQUESTS.labels("ok").inc()
-        return result
-    except AppError as error:
-        PUBLIC_REQUESTS.labels(str(error.status_code)).inc()
-        raise
-    finally:
-        PUBLIC_LATENCY.observe(time.monotonic() - started)
+    return await service.detail(_uuid7(product_id))

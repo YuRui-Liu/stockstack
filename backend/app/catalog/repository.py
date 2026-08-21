@@ -9,7 +9,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.catalog.domain import ProductStatus, ProductType, assert_transition
+from app.catalog.domain import (
+    IllegalProductStatusTransition,
+    ProductStatus,
+    ProductType,
+    assert_transition,
+)
 from app.catalog.models import ProductFieldSchemaModel, ProductImageModel, ProductModel
 
 
@@ -31,6 +36,12 @@ class SchemaConflict(RepositoryError):
 
 class DuplicateProductId(RepositoryError):
     pass
+
+
+class BatchUpdateError(RepositoryError):
+    def __init__(self, failures: Mapping[UUID, str]) -> None:
+        super().__init__("batch status update validation failed")
+        self.failures = dict(failures)
 
 
 class InvalidImages(RepositoryError):
@@ -233,9 +244,10 @@ class ProductRepository:
     ) -> list[ProductModel]:
         materialized = list(product_versions)
         seen: set[UUID] = set()
+        failures: dict[UUID, str] = {}
         for product_id, _version in materialized:
             if product_id in seen:
-                raise DuplicateProductId(f"duplicate product id: {product_id}")
+                failures[product_id] = "duplicate_product_id"
             seen.add(product_id)
         expected = dict(materialized)
         rows = (
@@ -248,12 +260,20 @@ class ProductRepository:
         ).scalars().all()
         found = {row.id for row in rows}
         missing = set(expected) - found
-        if missing:
-            raise NotFound(f"products not found: {sorted(map(str, missing))}")
+        for product_id in missing:
+            failures.setdefault(product_id, "not_found")
         for row in rows:
+            if row.id in failures:
+                continue
             if row.version != expected[row.id]:
-                raise VersionConflict(f"product {row.id} version conflict")
-            assert_transition(ProductStatus(row.status), target_status)
+                failures[row.id] = "version_conflict"
+                continue
+            try:
+                assert_transition(ProductStatus(row.status), target_status)
+            except IllegalProductStatusTransition:
+                failures[row.id] = "illegal_transition"
+        if failures:
+            raise BatchUpdateError(failures)
         for row in rows:
             row.status = target_status.value
             row.version += 1

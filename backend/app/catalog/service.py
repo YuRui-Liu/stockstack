@@ -17,6 +17,7 @@ from app.catalog.domain import (
 from app.catalog.field_schema import validate_attributes
 from app.catalog.models import ProductFieldSchemaModel, ProductModel
 from app.catalog.repository import (
+    BatchUpdateError,
     DuplicateProductId,
     InvalidImages,
     NotFound,
@@ -37,6 +38,7 @@ from app.core.metrics import DEPENDENCY_ERRORS
 _INVALIDATION_TASKS: set[asyncio.Task[None]] = set()
 
 _SERVICE_ERRORS = (
+    BatchUpdateError,
     DuplicateProductId,
     IllegalProductStatusTransition,
     IntegrityError,
@@ -66,6 +68,8 @@ def _raise_repository_error(error: Exception) -> None:
     if isinstance(error, VersionConflict):
         raise AppError("version_conflict", "Product version conflict", 409) from error
     if isinstance(error, (IllegalProductStatusTransition, DuplicateProductId)):
+        raise AppError("status_conflict", "Product status operation conflicts", 409) from error
+    if isinstance(error, BatchUpdateError):
         raise AppError("status_conflict", "Product status operation conflicts", 409) from error
     if isinstance(error, (SchemaConflict, InvalidImages, IntegrityError)):
         raise AppError("product_conflict", "Product data conflicts", 409) from error
@@ -232,14 +236,17 @@ class ProductService:
             await self._invalidate(*(product.id for product in products))
             detailed = [await self.repository.get_detail(product.id) for product in products]
             return [_view(product) for product in detailed if product is not None]
-        except _SERVICE_ERRORS as error:
+        except BatchUpdateError as error:
             await self.session.rollback()
             raise AppError(
                 "batch_status_conflict",
                 "Batch status update conflicts",
                 409,
                 {
-                    str(item.product_id): ["Status update could not be applied"]
-                    for item in payload.product_ids
+                    str(product_id): [reason]
+                    for product_id, reason in error.failures.items()
                 },
             ) from error
+        except _SERVICE_ERRORS as error:
+            await self.session.rollback()
+            _raise_repository_error(error)
