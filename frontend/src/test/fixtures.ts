@@ -4,34 +4,49 @@ import { setupServer } from "msw/node";
 export const physicalSchema = {
   product_type: "physical",
   version: 1,
-  active: true,
-  fields: [
-    { key: "weight_kg", label: "重量（千克）", control: "number", data_type: "number", required: true, minimum: 0 },
-    { key: "specification", label: "规格", control: "text", data_type: "string", required: true, max_length: 100 },
-    { key: "shipping_template", label: "物流模板", control: "select", data_type: "string", required: true, options: ["standard", "cold_chain"] },
-  ],
+  schema: {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    type: "object",
+    properties: {
+      weight_kg: { type: "number", minimum: 0, title: "重量（千克）" },
+      specification: { type: "string", maxLength: 100, title: "规格" },
+      shipping_template: { enum: ["standard", "cold_chain"], title: "物流模板" },
+    },
+    required: ["weight_kg", "specification", "shipping_template"],
+    additionalProperties: false,
+  },
 } as const;
 
 export const virtualSchema = {
   product_type: "virtual",
   version: 1,
-  active: true,
-  fields: [
-    { key: "validity_days", label: "有效期（天）", control: "number", data_type: "integer", required: true, minimum: 1 },
-    { key: "verification_method", label: "核销方式", control: "select", data_type: "string", required: true, options: ["code", "qr", "manual"] },
-    { key: "redemption_instructions", label: "兑换说明", control: "textarea", data_type: "string", required: true, max_length: 500 },
-  ],
+  schema: {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    type: "object",
+    properties: {
+      validity_days: { type: "integer", minimum: 1, title: "有效期（天）" },
+      verification_method: { enum: ["code", "qr", "manual"], title: "核销方式" },
+      redemption_instructions: { type: "string", maxLength: 500, title: "兑换说明" },
+    },
+    required: ["validity_days", "verification_method", "redemption_instructions"],
+    additionalProperties: false,
+  },
 } as const;
 
 export const creativeSchema = {
   product_type: "creative",
   version: 1,
-  active: true,
-  fields: [
-    { key: "asset_type", label: "素材类型", control: "select", data_type: "string", required: true, options: ["image", "video", "html"] },
-    { key: "dimensions", label: "投放尺寸", control: "text", data_type: "string", required: true, pattern: "^[1-9][0-9]*x[1-9][0-9]*$" },
-    { key: "file_url", label: "文件地址", control: "text", data_type: "string", required: true, format: "http-url" },
-  ],
+  schema: {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    type: "object",
+    properties: {
+      asset_type: { enum: ["image", "video", "html"], title: "素材类型" },
+      dimensions: { type: "string", pattern: "^[1-9][0-9]*x[1-9][0-9]*$", title: "投放尺寸" },
+      file_url: { type: "string", format: "http-url", title: "文件地址" },
+    },
+    required: ["asset_type", "dimensions", "file_url"],
+    additionalProperties: false,
+  },
 } as const;
 
 export const penalizedProduct = {
@@ -45,16 +60,10 @@ export const penalizedProduct = {
   status: "penalized",
   delivery_method: "ems",
   return_rule: "seven_days",
-  attributes: {
-    weight_kg: 0.5,
-    specification: "标准款",
-    shipping_template: "standard",
-  },
+  attributes: { weight_kg: 0.5, specification: "标准款", shipping_template: "standard" },
   schema_version: 1,
   version: 3,
-  images: [
-    { kind: "main", url: "/uploads/example.png", sort_order: 0, size_bytes: 1024, mime_type: "image/png" },
-  ],
+  images: [{ kind: "main", url: "/uploads/example.png", sort_order: 0, size_bytes: 1024, mime_type: "image/png" }],
   created_at: "2026-08-21T08:00:00Z",
   updated_at: "2026-08-21T09:00:00Z",
 } as const;
@@ -68,12 +77,7 @@ export const apiHandlers = [
         { status: 401 },
       );
     }
-
-    return HttpResponse.json({
-      access_token: "test-access-token",
-      token_type: "bearer",
-      expires_in: 3600,
-    });
+    return HttpResponse.json({ access_token: "test-access-token", token_type: "bearer", expires_in: 3600 });
   }),
 ];
 

@@ -1,4 +1,5 @@
-import type { ErrorResponse, LoginRequest, LoginResponse } from "./types";
+import type { ErrorResponse, FieldSchema, ImageUploadView, ProductCreate, ProductUpdate, ProductView } from "./types";
+import type { LoginRequest, LoginResponse } from "./types";
 
 export const ACCESS_TOKEN_KEY = "stockstack_access_token";
 export const UNAUTHORIZED_EVENT = "stockstack:unauthorized";
@@ -39,7 +40,7 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
   const token = sessionStorage.getItem(ACCESS_TOKEN_KEY);
 
   headers.set("Accept", "application/json");
-  if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  if (init.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   const response = await fetch(`${apiBaseUrl}${path}`, { ...init, headers });
@@ -66,4 +67,30 @@ export function login(credentials: LoginRequest): Promise<LoginResponse> {
     method: "POST",
     body: JSON.stringify(credentials),
   });
+}
+
+export function getActiveProductSchema(productType: string): Promise<FieldSchema> {
+  return apiRequest(`/api/v1/product-schemas/${productType}/active`);
+}
+
+export function getProductSchema(productType: string, version: number): Promise<FieldSchema> {
+  return apiRequest(`/api/v1/product-schemas/${productType}/${version}`);
+}
+
+export function getProduct(productId: string): Promise<ProductView> {
+  return apiRequest(`/api/v1/products/${productId}`);
+}
+
+export function createProduct(payload: ProductCreate): Promise<ProductView> {
+  return apiRequest("/api/v1/products", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function updateProduct(productId: string, payload: ProductUpdate): Promise<ProductView> {
+  return apiRequest(`/api/v1/products/${productId}`, { method: "PUT", body: JSON.stringify(payload) });
+}
+
+export function uploadImage(file: File): Promise<ImageUploadView> {
+  const form = new FormData();
+  form.append("file", file);
+  return apiRequest("/api/v1/uploads/images", { method: "POST", body: form });
 }
