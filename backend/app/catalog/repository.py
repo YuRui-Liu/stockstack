@@ -1,10 +1,13 @@
+from __future__ import annotations
+
 from collections.abc import Iterable, Mapping
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.catalog.domain import ProductStatus, ProductType, assert_transition
 from app.catalog.models import ProductFieldSchemaModel, ProductImageModel, ProductModel
@@ -63,6 +66,65 @@ class ProductRepository:
                 ProductFieldSchemaModel.version == version,
             )
         )
+
+    async def get_detail(self, product_id: UUID) -> ProductModel | None:
+        return await self.session.scalar(
+            select(ProductModel)
+            .where(ProductModel.id == product_id)
+            .options(selectinload(ProductModel.images))
+        )
+
+    async def list(
+        self,
+        *,
+        query: str | None = None,
+        product_type: ProductType | None = None,
+        status: ProductStatus | None = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> tuple[list[ProductModel], int]:
+        filters = []
+        normalized_query = query.strip() if query else ""
+        if normalized_query:
+            try:
+                query_id = UUID(normalized_query)
+            except ValueError:
+                query_id = None
+            if query_id is not None:
+                filters.append(ProductModel.id == query_id)
+            else:
+                search_query = func.plainto_tsquery("simple", normalized_query)
+                filters.append(
+                    or_(
+                        func.to_tsvector("simple", ProductModel.title).op("@@")(
+                            search_query
+                        ),
+                        ProductModel.title.ilike(f"%{normalized_query}%"),
+                    )
+                )
+        if product_type is not None:
+            filters.append(ProductModel.product_type == product_type.value)
+        if status is not None:
+            filters.append(ProductModel.status == status.value)
+
+        total = await self.session.scalar(
+            select(func.count()).select_from(ProductModel).where(*filters)
+        )
+        items = (
+            (
+                await self.session.execute(
+                    select(ProductModel)
+                    .where(*filters)
+                    .options(selectinload(ProductModel.images))
+                    .order_by(ProductModel.updated_at.desc(), ProductModel.id.desc())
+                    .offset((page - 1) * page_size)
+                    .limit(page_size)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return list(items), int(total or 0)
 
     async def create_schema(
         self,
@@ -132,6 +194,30 @@ class ProductRepository:
         if exists is None:
             raise NotFound(f"product {product_id} not found")
         raise VersionConflict(f"product {product_id} version is no longer {expected_version}")
+
+    async def replace_images(
+        self, product: ProductModel, images: Iterable[Mapping[str, Any]]
+    ) -> ProductModel:
+        image_values = list(images)
+        main_count = sum(_stable_value(image["kind"]) == "main" for image in image_values)
+        gallery_count = sum(
+            _stable_value(image["kind"]) == "gallery" for image in image_values
+        )
+        if main_count != 1 or gallery_count > 5:
+            raise InvalidImages("exactly one main and at most five gallery images required")
+        await self.session.execute(
+            delete(ProductImageModel).where(ProductImageModel.product_id == product.id)
+        )
+        for image in image_values:
+            self.session.add(
+                ProductImageModel(
+                    product_id=product.id,
+                    **{key: _stable_value(value) for key, value in image.items()},
+                )
+            )
+        await self.session.flush()
+        await self.session.refresh(product, attribute_names=["images"])
+        return product
 
     async def batch_update_status(
         self,

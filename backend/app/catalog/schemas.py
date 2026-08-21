@@ -17,6 +17,7 @@ class StrictRequestModel(BaseModel):
 class ProductImageInput(StrictRequestModel):
     kind: Literal["main", "gallery"]
     url: str = Field(min_length=1)
+    sort_order: int = Field(default=0, ge=0)
     size_bytes: int = Field(ge=1, le=2 * 1024 * 1024)
     mime_type: Literal["image/jpeg", "image/png", "image/webp"]
 
@@ -125,3 +126,19 @@ class ProductPage(BaseModel):
     total: int = Field(ge=0)
     page: int = Field(ge=1)
     page_size: int = Field(ge=1)
+
+
+class ProductSchemaView(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    product_type: ProductType
+    version: int
+    field_schema: dict[str, Any] = Field(
+        validation_alias="schema", serialization_alias="schema"
+    )
+
+
+class ImageUploadView(BaseModel):
+    url: str
+    size_bytes: int
+    mime_type: Literal["image/jpeg", "image/png", "image/webp"]

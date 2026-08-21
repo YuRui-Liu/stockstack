@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     admin_username: str = "admin"
     admin_password_hash: str
     access_token_expire_minutes: int = Field(default=15, ge=1)
+    upload_root: str = "/tmp/stockstack-uploads"
 
     cache_ttl_seconds: int = Field(default=300, ge=1)
     cache_ttl_jitter_seconds: int = Field(default=30, ge=0)
