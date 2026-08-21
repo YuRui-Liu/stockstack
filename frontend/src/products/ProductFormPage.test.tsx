@@ -61,6 +61,52 @@ describe("ProductFormPage", () => {
     await waitFor(() => expect(screen.getByLabelText("素材类型")).toBeInTheDocument());
   });
 
+  it("切换类型加载 active schema 失败后清空旧字段并阻断提交", async () => {
+    server.use(http.get("*/api/v1/product-schemas/:type/active", ({ params }) => {
+      if (params.type === "virtual") {
+        return HttpResponse.json({ code: "schema_unavailable", message: "字段配置加载失败", field_errors: {}, request_id: "schema-failed" }, { status: 503 });
+      }
+      return HttpResponse.json(physicalSchema);
+    }));
+    render(<ProductFormPage initialImages={[]} />);
+    await screen.findByLabelText("重量（千克）");
+    fireEvent.mouseDown(screen.getByLabelText("商品类型"));
+    fireEvent.click((await screen.findAllByText("虚拟商品")).at(-1)!);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("字段配置加载失败");
+    expect(screen.queryByLabelText("重量（千克）")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "发布商品" })).toBeDisabled();
+  });
+
+  it("拒绝负价格并且不发送创建请求", async () => {
+    let submitted = false;
+    server.use(
+      http.get("*/api/v1/product-schemas/physical/active", () => HttpResponse.json(physicalSchema)),
+      http.post("*/api/v1/products", () => { submitted = true; return HttpResponse.json(penalizedProduct, { status: 201 }); }),
+    );
+    render(<ProductFormPage initialImages={[{ kind: "main", url: "/uploads/main.png", size_bytes: 12, mime_type: "image/png" }]} />);
+    await screen.findByLabelText("重量（千克）");
+    fillCommonFields();
+    fireEvent.change(screen.getByLabelText("价格"), { target: { value: "-1" } });
+    fireEvent.click(screen.getByRole("button", { name: "发布商品" }));
+    expect(await screen.findByText("价格必须为非负数，且最多两位小数")).toBeInTheDocument();
+    expect(submitted).toBe(false);
+  });
+
+  it("无主图时不能提交", async () => {
+    let submitted = false;
+    server.use(
+      http.get("*/api/v1/product-schemas/physical/active", () => HttpResponse.json(physicalSchema)),
+      http.post("*/api/v1/products", () => { submitted = true; return HttpResponse.json(penalizedProduct, { status: 201 }); }),
+    );
+    render(<ProductFormPage initialImages={[]} />);
+    await screen.findByLabelText("重量（千克）");
+    fillCommonFields();
+    fireEvent.click(screen.getByRole("button", { name: "发布商品" }));
+    expect(await screen.findByText("请上传一张主图")).toBeInTheDocument();
+    expect(submitted).toBe(false);
+  });
+
   it("将服务端 field_errors 定位到动态字段", async () => {
     server.use(
       http.get("*/api/v1/product-schemas/physical/active", () => HttpResponse.json(physicalSchema)),

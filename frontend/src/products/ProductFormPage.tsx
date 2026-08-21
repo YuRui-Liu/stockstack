@@ -19,6 +19,7 @@ export default function ProductFormPage({ productId, initialImages = noImages }:
   const [fieldSchema, setFieldSchema] = useState<FieldSchema>();
   const [product, setProduct] = useState<ProductView>();
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
   const [error, setError] = useState("");
   const schemaRequest = useRef(0);
 
@@ -40,7 +41,7 @@ export default function ProductFormPage({ productId, initialImages = noImages }:
           form.setFieldsValue({ product_type: "physical", status: "off_shelf", delivery_method: "ems", return_rule: "seven_days", images: initialImages });
         }
       } catch (caught) { if (current) setError(caught instanceof ApiError ? caught.response.message : "商品表单加载失败"); }
-      finally { if (current) setLoading(false); }
+      finally { if (current) { setLoading(false); setInitialized(true); } }
     };
     void load();
     return () => { current = false; };
@@ -49,6 +50,7 @@ export default function ProductFormPage({ productId, initialImages = noImages }:
   const changeType = async (type: ProductType) => {
     const request = ++schemaRequest.current;
     form.setFieldValue("attributes", {});
+    setFieldSchema(undefined);
     setLoading(true); setError("");
     try {
       const schema = await getActiveProductSchema(type);
@@ -77,7 +79,7 @@ export default function ProductFormPage({ productId, initialImages = noImages }:
     }
   };
 
-  if (loading && !fieldSchema) return <Spin aria-label="加载商品表单" />;
+  if (!initialized) return <Spin aria-label="加载商品表单" />;
   return <Card style={{ maxWidth: 880, margin: "24px auto" }}>
     <Typography.Title level={2}>{productId ? "编辑商品" : "发布商品"}</Typography.Title>
     {error && <Alert role="alert" type="error" showIcon message={error} style={{ marginBottom: 16 }} />}
@@ -86,7 +88,10 @@ export default function ProductFormPage({ productId, initialImages = noImages }:
       <Form.Item name="title" label="商品标题" rules={[{ required: true, message: "请输入商品标题" }]}><Input maxLength={60} /></Form.Item>
       <Form.Item name="short_title" label="短标题"><Input maxLength={120} /></Form.Item>
       <Space size="middle" style={{ display: "flex" }} align="start">
-        <Form.Item name="price_amount" label="价格" rules={[{ required: true, message: "请输入价格" }]}><Input inputMode="decimal" /></Form.Item>
+        <Form.Item name="price_amount" label="价格" rules={[
+          { required: true, message: "请输入价格" },
+          { pattern: /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, message: "价格必须为非负数，且最多两位小数" },
+        ]}><Input inputMode="decimal" /></Form.Item>
         <Form.Item name="stock" label="库存" rules={[{ required: true, message: "请输入库存" }]}><InputNumber min={0} precision={0} /></Form.Item>
       </Space>
       <Form.Item name="description_html" label="商品描述"><Input.TextArea rows={5} maxLength={2000} /></Form.Item>
@@ -95,7 +100,7 @@ export default function ProductFormPage({ productId, initialImages = noImages }:
       <Form.Item name="status" label="状态" rules={[{ required: true }]}><Select options={[{ value: "off_shelf", label: "下架" }, { value: "on_shelf", label: "上架" }, { value: "penalized", label: "处罚中" }]} /></Form.Item>
       {fieldSchema && <DynamicFields fieldSchema={fieldSchema} />}
       <Form.Item name="images" label="商品图片" rules={[{ validator: (_, value: ProductImageInput[] = []) => value.filter((image) => image.kind === "main").length === 1 ? Promise.resolve() : Promise.reject(new Error("请上传一张主图")) }]}><ImageFields /></Form.Item>
-      <Button type="primary" htmlType="submit" loading={loading}>{productId ? "保存修改" : "发布商品"}</Button>
+      <Button type="primary" htmlType="submit" loading={loading} disabled={!fieldSchema}>{productId ? "保存修改" : "发布商品"}</Button>
     </Form>
   </Card>;
 }
