@@ -70,6 +70,10 @@ services:
 
   api:
     <<: *api-image
+    environment:
+      <<: *api-environment
+      # No host port: public traffic only arrives through the controlled web proxy.
+      TRUST_PROXY_HEADERS: "true"
     volumes:
       - uploads:/app/uploads
     depends_on:
