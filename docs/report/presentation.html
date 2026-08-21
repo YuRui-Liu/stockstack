@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockStack 商品管理全栈实战 — 汇报演示</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --red:#dc2626; --red-lt:#fef2f2; --red-bd:#fecaca;
+  --orange:#f97316; --orange-lt:#fff7ed; --orange-bd:#fed7aa;
+  --yellow:#eab308; --yellow-lt:#fefce8; --yellow-bd:#fde68a;
+  --green:#16a34a; --green-lt:#f0fdf4; --green-bd:#bbf7d0;
+  --purple:#7c3aed; --purple-lt:#f5f3ff; --purple-bd:#ddd6fe;
+  --blue:#2563eb; --blue-lt:#eff6ff; --blue-bd:#bfdbfe;
+  --teal:#0d9488; --teal-lt:#f0fdfa; --teal-bd:#99f6e4;
+  --pink:#db2777; --pink-lt:#fdf2f8; --pink-bd:#fbcfe8;
+  --gray1:#1d1d1f; --gray2:#6e6e73; --gray3:#c7c7cc; --gray4:#f5f5f7;
+}
+html { scroll-snap-type:y mandatory; overflow-y:scroll; }
+body {
+  font-family:-apple-system,'SF Pro Display','PingFang SC','Helvetica Neue','Microsoft YaHei',sans-serif;
+  background:#fff; color:var(--gray1); -webkit-font-smoothing:antialiased;
+  font-size:14px; line-height:1.75;
+}
+section {
+  min-height:100vh; scroll-snap-align:start;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  position:relative; padding:72px 80px 56px 120px;
+}
+#s0 { background:#fff; text-align:center; padding:72px 48px 48px; }
+#s1,#s3,#s5,#s7,#s9 { background:var(--gray4); }
+#s2,#s4,#s6,#s8,#s10 { background:#fff; }
+
+#topbar {
+  position:fixed; top:0; left:0; right:0; height:44px;
+  background:rgba(255,255,255,.92);
+  backdrop-filter:saturate(180%) blur(20px);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid rgba(0,0,0,.07);
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 24px; z-index:999;
+}
+.brand { font-size:13px; font-weight:600; color:var(--gray2); letter-spacing:-.01em; }
+.topbar-nav { display:flex; gap:4px; }
+.topbar-nav a { font-size:12px; padding:4px 12px; border-radius:20px; color:var(--gray2); text-decoration:none; transition:background .15s,color .15s; }
+.topbar-nav a:hover { background:var(--gray4); color:var(--gray1); }
+
+#sidebar {
+  position:fixed; left:120px; top:50%; transform:translateY(-50%);
+  display:flex; flex-direction:column; align-items:flex-start; z-index:998;
+  max-height:90vh; overflow:hidden;
+}
+.sb-item { display:flex; align-items:center; gap:8px; cursor:pointer; padding:1px 0; }
+.sb-label { font-size:13px; color:var(--gray3); white-space:nowrap; transition:color .2s; }
+.sb-sublabel { font-size:12px; color:var(--gray3); white-space:nowrap; transition:color .2s; padding-left:4px; }
+.sb-item.active .sb-label, .sb-item.active .sb-sublabel { color:var(--gray1); font-weight:600; }
+.sb-item:hover .sb-label, .sb-item:hover .sb-sublabel { color:var(--gray2); }
+.sb-dot {
+  flex-shrink:0; border-radius:50%; transition:all .25s;
+  background:var(--gray4); border:1.5px solid var(--gray3);
+}
+.sb-dot.main { width:6px; height:6px; }
+.sb-dot.sub  { width:5px; height:5px; margin-left:2px; }
+.sb-item.visited .sb-dot { background:var(--gray3); border-color:var(--gray3); }
+.sb-item[data-g="r"].visited .sb-dot { background:rgba(220,38,38,.25); border-color:var(--red); }
+.sb-item[data-g="o"].visited .sb-dot { background:rgba(249,115,22,.25); border-color:var(--orange); }
+.sb-item[data-g="y"].visited .sb-dot { background:rgba(234,179,8,.3);   border-color:var(--yellow); }
+.sb-item[data-g="g"].visited .sb-dot { background:rgba(22,163,74,.25); border-color:var(--green); }
+.sb-item[data-g="b"].visited .sb-dot { background:rgba(37,99,235,.25); border-color:var(--blue); }
+.sb-item.active .sb-dot { background:var(--gray1); border-color:var(--gray1); box-shadow:0 0 0 3px rgba(29,29,31,.1); }
+.sb-item[data-g="r"].active .sb-dot { background:var(--red);    border-color:var(--red);    box-shadow:0 0 0 3px rgba(220,38,38,.18); }
+.sb-item[data-g="o"].active .sb-dot { background:var(--orange); border-color:var(--orange); box-shadow:0 0 0 3px rgba(249,115,22,.18); }
+.sb-item[data-g="y"].active .sb-dot { background:var(--yellow); border-color:var(--yellow); box-shadow:0 0 0 3px rgba(234,179,8,.2); }
+.sb-item[data-g="g"].active .sb-dot { background:var(--green);  border-color:var(--green);  box-shadow:0 0 0 3px rgba(22,163,74,.18); }
+.sb-item[data-g="b"].active .sb-dot { background:var(--blue);   border-color:var(--blue);   box-shadow:0 0 0 3px rgba(37,99,235,.18); }
+.sb-item[data-g="r"].active .sb-label,.sb-item[data-g="r"].active .sb-sublabel { color:var(--red); }
+.sb-item[data-g="o"].active .sb-label,.sb-item[data-g="o"].active .sb-sublabel { color:var(--orange); }
+.sb-item[data-g="y"].active .sb-label,.sb-item[data-g="y"].active .sb-sublabel { color:var(--yellow); }
+.sb-item[data-g="g"].active .sb-label,.sb-item[data-g="g"].active .sb-sublabel { color:var(--green); }
+.sb-item[data-g="b"].active .sb-label,.sb-item[data-g="b"].active .sb-sublabel { color:var(--blue); }
+.sb-line { width:1px; height:10px; margin-left:2px; background:var(--gray4); transition:background .25s; }
+.sb-line.sub { margin-left:4px; }
+.sb-line.visited { background:var(--gray3); }
+.sb-line.visited.r { background:rgba(220,38,38,.25); }
+.sb-line.visited.o { background:rgba(249,115,22,.25); }
+.sb-line.visited.y { background:rgba(234,179,8,.3); }
+.sb-line.visited.g { background:rgba(22,163,74,.25); }
+.sb-line.visited.b { background:rgba(37,99,235,.25); }
+
+#bar { position:fixed; bottom:0; left:0; height:2px; background:var(--red); transition:width .35s ease; z-index:999; }
+
+.up { opacity:0; transform:translateY(22px); transition:opacity .65s ease,transform .65s ease; }
+.up.show { opacity:1; transform:translateY(0); }
+@keyframes fade { from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:translateY(0);} }
+@keyframes pulse { 0%,100%{opacity:.3;}50%{opacity:1;} }
+
+.eyebrow { font-size:12px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; margin-bottom:14px; }
+.eyebrow.r{color:var(--red);} .eyebrow.o{color:var(--orange);} .eyebrow.y{color:var(--yellow);} .eyebrow.g{color:var(--green);} .eyebrow.b{color:var(--blue);}
+.page-title { font-size:clamp(26px,3.2vw,44px); font-weight:700; letter-spacing:-.03em; color:var(--gray1); line-height:1.12; margin-bottom:10px; }
+.page-sub { font-size:14px; color:var(--gray2); line-height:1.6; margin-bottom:24px; }
+.sec-heading { font-size:13px; font-weight:700; color:var(--gray2); letter-spacing:.08em; text-transform:uppercase; margin:20px 0 10px; display:flex; align-items:center; gap:6px; }
+.sec-heading::before { content:''; width:3px; height:13px; border-radius:2px; background:currentColor; display:inline-block; }
+
+.tag { display:inline-block; padding:2px 9px; border-radius:20px; font-size:11px; font-weight:700; letter-spacing:.05em; }
+.tag-r{background:var(--red-lt);color:var(--red);}
+.tag-o{background:var(--orange-lt);color:var(--orange);}
+.tag-y{background:var(--yellow-lt);color:var(--yellow);}
+.tag-g{background:var(--green-lt);color:var(--green);}
+.tag-p{background:var(--purple-lt);color:var(--purple);}
+.tag-b{background:var(--blue-lt);color:var(--blue);}
+.tag-k{background:var(--gray4);color:var(--gray2);}
+
+.card { background:#fff; border-radius:14px; padding:20px 22px; box-shadow:0 2px 12px rgba(0,0,0,.06); border:1.5px solid var(--gray4); transition:transform .2s,box-shadow .2s; }
+.card:hover { transform:translateY(-2px); box-shadow:0 6px 24px rgba(0,0,0,.1); }
+.card.r-bd{border-color:var(--red-bd);border-top:3px solid var(--red);}
+.card.o-bd{border-color:var(--orange-bd);border-top:3px solid var(--orange);}
+.card.y-bd{border-color:var(--yellow-bd);border-top:3px solid var(--yellow);}
+.card.g-bd{border-color:var(--green-bd);border-top:3px solid var(--green);}
+.card.p-bd{border-color:var(--purple-bd);border-top:3px solid var(--purple);}
+.card.b-bd{border-color:var(--blue-bd);border-top:3px solid var(--blue);}
+.card-label{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:7px;}
+.card-label.r{color:var(--red);}.card-label.o{color:var(--orange);}.card-label.y{color:var(--yellow);}
+.card-label.g{color:var(--green);}.card-label.p{color:var(--purple);}.card-label.b{color:var(--blue);}
+.card-title{font-size:14px;font-weight:700;color:var(--gray1);margin-bottom:5px;}
+.card-desc{font-size:13px;color:var(--gray2);line-height:1.65;}
+
+.ktable{width:100%;border-collapse:collapse;font-size:13px;border-radius:10px;overflow:hidden;box-shadow:0 1px 8px rgba(0,0,0,.06);}
+.ktable thead th{background:var(--gray4);font-weight:600;color:var(--gray2);text-align:left;padding:9px 14px;font-size:12px;letter-spacing:.04em;}
+.ktable tbody td{padding:9px 14px;border-top:1px solid var(--gray4);background:#fff;color:var(--gray1);vertical-align:top;font-size:13px;}
+.ktable tbody tr:hover td{background:#fafafa;}
+.ktable a{color:var(--red);text-decoration:none;}
+.ktable a:hover{text-decoration:underline;}
+
+.verify-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;width:100%;}
+.verify-card{border-radius:10px;border:1px solid;overflow:hidden;}
+.verify-card.v1{border-color:var(--blue-bd);}
+.verify-card.v2{border-color:var(--teal-bd);}
+.verify-card.v3{border-color:var(--purple-bd);}
+.verify-card.v4{border-color:var(--orange-bd);}
+.verify-card.v5{border-color:var(--pink-bd);grid-column:1/-1;}
+.verify-card.v6{border-color:var(--green-bd);}
+.verify-card.full{grid-column:1/-1;}
+.verify-head{display:flex;align-items:center;gap:8px;padding:10px 14px;font-weight:700;font-size:13px;flex-wrap:wrap;}
+.verify-card.v1 .verify-head{background:var(--blue-lt);color:#1d4ed8;}
+.verify-card.v2 .verify-head{background:var(--teal-lt);color:#0f766e;}
+.verify-card.v3 .verify-head{background:var(--purple-lt);color:#6d28d9;}
+.verify-card.v4 .verify-head{background:var(--orange-lt);color:#b45309;}
+.verify-card.v5 .verify-head{background:var(--pink-lt);color:#be185d;}
+.verify-card.v6 .verify-head{background:var(--green-lt);color:#15803d;}
+.verify-num{flex-shrink:0;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;}
+.verify-card.v1 .verify-num{background:#2563eb;}
+.verify-card.v2 .verify-num{background:#0d9488;}
+.verify-card.v3 .verify-num{background:#7c3aed;}
+.verify-card.v4 .verify-num{background:#d97706;}
+.verify-card.v5 .verify-num{background:#db2777;}
+.verify-card.v6 .verify-num{background:#16a34a;}
+.verify-cost{font-size:11px;font-weight:400;opacity:.7;margin-left:auto;white-space:nowrap;}
+.verify-body{padding:12px 14px;font-size:12px;color:var(--gray2);line-height:1.75;background:#fff;}
+.verify-body .vline{display:block;padding:1px 0;}
+.verify-brain{margin-top:8px;padding:8px 10px;border-radius:6px;font-size:12px;font-weight:500;background:var(--gray4);border-left:3px solid;}
+.verify-card.v1 .verify-brain{border-color:var(--blue);color:#1e40af;}
+.verify-card.v2 .verify-brain{border-color:var(--teal);color:#0f766e;}
+.verify-card.v3 .verify-brain{border-color:var(--purple);color:#5b21b6;}
+.verify-card.v4 .verify-brain{border-color:var(--orange);color:#92400e;}
+.verify-card.v5 .verify-brain{border-color:var(--pink);color:#9d174d;}
+.verify-card.v6 .verify-brain{border-color:var(--green);color:#15803d;}
+.verify-body strong{color:var(--gray1);}
+
+.prompt-wrap{width:100%;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,.08);border:1px solid var(--gray4);}
+.prompt-bar{padding:9px 18px;background:var(--gray4);border-bottom:1px solid var(--gray3);display:flex;align-items:center;}
+.prompt-bar span{font-size:12px;font-weight:600;color:var(--gray2);}
+.prompt-text{padding:16px 20px;font-size:12px;color:var(--gray1);line-height:2;font-family:'SF Mono','Fira Code',monospace;white-space:pre-wrap;}
+
+.page-img{max-width:100%;border-radius:10px;border:1px solid var(--gray4);box-shadow:0 2px 12px rgba(0,0,0,.08);display:block;cursor:zoom-in;}
+.img-cap{font-size:11px;color:var(--gray3);text-align:center;margin-top:6px;}
+
+#lb{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.82);align-items:center;justify-content:center;cursor:zoom-out;}
+#lb.on{display:flex;}
+#lb img{max-width:92vw;max-height:92vh;border-radius:10px;object-fit:contain;box-shadow:0 8px 48px rgba(0,0,0,.5);}
+#lb-x{position:fixed;top:18px;right:26px;font-size:30px;color:#fff;cursor:pointer;opacity:.7;}
+#lb-x:hover{opacity:1;}
+
+.hint{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:4px;animation:fade .8s 1s both;}
+.hint span{font-size:10px;letter-spacing:.2em;color:var(--gray3);text-transform:uppercase;}
+.hint-line{width:1px;height:24px;background:linear-gradient(180deg,transparent,var(--gray3));animation:pulse 1.8s infinite;}
+
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;width:100%;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;width:100%;}
+.gcol{grid-column:1/-1;}
+.max860{max-width:860px;width:100%;}
+.max720{max-width:720px;width:100%;}
+
+a{color:var(--red);text-decoration:none;}
+a:hover{text-decoration:underline;}
+</style>
+</head>
+<body>
+
+<!-- 灯箱 -->
+<div id="lb" onclick="closeLb()">
+  <span id="lb-x">&times;</span>
+  <img id="lb-img" src="" alt="">
+</div>
+
+<!-- 顶部导航 -->
+<div id="topbar">
+  <span class="brand">StockStack 商品管理</span>
+  <nav class="topbar-nav">
+    <a href="#s1" onclick="goTo('s1');return false;">项目概览</a>
+    <a href="#s2" onclick="goTo('s2');return false;">架构设计</a>
+    <a href="#s3" onclick="goTo('s3');return false;">功能闭环</a>
+    <a href="#s4" onclick="goTo('s4');return false;">核心亮点</a>
+    <a href="#s7" onclick="goTo('s7');return false;">工程验证</a>
+    <a href="#s9" onclick="goTo('s9');return false;">交付演进</a>
+  </nav>
+</div>
+
+<!-- 左侧进度条 -->
+<div id="sidebar">
+  <div class="sb-item active" data-g="r" onclick="goTo('s0')">
+    <span class="sb-dot main"></span><span class="sb-label">StockStack</span>
+  </div>
+  <div class="sb-line"></div>
+  <div class="sb-item" data-g="r" onclick="goTo('s1')">
+    <span class="sb-dot main"></span><span class="sb-label">项目概览</span>
+  </div>
+  <div class="sb-line"></div>
+  <div class="sb-item" data-g="o" onclick="goTo('s2')">
+    <span class="sb-dot main"></span><span class="sb-label">架构设计</span>
+  </div>
+  <div class="sb-line"></div>
+  <div class="sb-item" data-g="y" onclick="goTo('s3')">
+    <span class="sb-dot main"></span><span class="sb-label">L0 功能闭环</span>
+  </div>
+  <div class="sb-line sub"></div>
+  <div class="sb-item" data-g="y" onclick="goTo('s4')">
+    <span class="sb-dot sub"></span><span class="sb-sublabel">L1 Schema 多态</span>
+  </div>
+  <div class="sb-line sub"></div>
+  <div class="sb-item" data-g="y" onclick="goTo('s5')">
+    <span class="sb-dot sub"></span><span class="sb-sublabel">L3 高 QPS 防护</span>
+  </div>
+  <div class="sb-line sub"></div>
+  <div class="sb-item" data-g="y" onclick="goTo('s6')">
+    <span class="sb-dot sub"></span><span class="sb-sublabel">数据模型与 API</span>
+  </div>
+  <div class="sb-line"></div>
+  <div class="sb-item" data-g="g" onclick="goTo('s7')">
+    <span class="sb-dot main"></span><span class="sb-label">工程验证</span>
+  </div>
+  <div class="sb-line"></div>
+  <div class="sb-item" data-g="b" onclick="goTo('s8')">
+    <span class="sb-dot main"></span><span class="sb-label">性能与演进</span>
+  </div>
+  <div class="sb-line sub"></div>
+  <div class="sb-item" data-g="b" onclick="goTo('s9')">
+    <span class="sb-dot sub"></span><span class="sb-sublabel">交付与启动</span>
+  </div>
+  <div class="sb-line"></div>
+  <div class="sb-item" data-g="r" onclick="goTo('s10')">
+    <span class="sb-dot main"></span><span class="sb-label">结语</span>
+  </div>
+</div>
+
+<!-- 底部进度红线 -->
+<div id="bar" style="width:0%"></div>
+
+<!-- ========== S0: 封面 ========== -->
+<section id="s0">
+  <div class="eyebrow r" style="animation:fade .6s .05s both;">FULL-STACK ENGINEERING PRACTICE</div>
+  <h1 style="font-size:clamp(48px,7vw,88px);font-weight:700;letter-spacing:-.04em;line-height:1.05;margin-bottom:18px;animation:fade .7s .15s both;">
+    StockStack<br>商品管理全栈实战
+  </h1>
+  <p style="font-size:clamp(16px,1.6vw,22px);color:var(--gray2);max-width:600px;margin:0 auto 24px;line-height:1.7;animation:fade .7s .3s both;">
+    从业务语义到工程化落地的系统性设计<br>
+    87 个文件 · 12,688 行新增代码 · 已合并 main@a379d38
+  </p>
+  <p style="font-size:13px;color:var(--gray3);animation:fade .7s .45s both;">
+    汇报人：项目开发者 &nbsp;|&nbsp; 2026-08-21
+  </p>
+  <div class="hint"><div class="hint-line"></div><span>scroll</span></div>
+</section>
+
+<!-- ========== S1: 项目概览 ========== -->
+<section id="s1">
+  <div class="max860">
+    <div class="eyebrow r up" style="transition-delay:.05s;">PROJECT OVERVIEW</div>
+    <h2 class="page-title up" style="transition-delay:.1s;">项目总览：从题目到可运行代码</h2>
+    <p class="page-sub up" style="transition-delay:.14s;">
+      阶段④实战篇要求构建商品管理模块，覆盖商品发布与管理，并逐层满足 L0/L1/L3 三个评判等级。
+    </p>
+
+    <div class="g3 up" style="transition-delay:.2s;">
+      <div class="card r-bd">
+        <div class="card-label r">L0 功能完成</div>
+        <div class="card-title">全链路业务闭环</div>
+        <div class="card-desc">商品发布、管理列表、组合筛选、单/批量上下架、处罚终态，前后端双重校验。</div>
+      </div>
+      <div class="card o-bd">
+        <div class="card-label o">L1 业务扩展</div>
+        <div class="card-title">版本化 Schema 多态模型</div>
+        <div class="card-desc">实物、虚拟、创意三类商品通过不可变字段模板动态驱动，历史版本可复现。</div>
+      </div>
+      <div class="card g-bd">
+        <div class="card-label g">L3 高并发稳定</div>
+        <div class="card-title">分层缓存防护体系</div>
+        <div class="card-desc">Cache-Aside + 空值缓存 + Single-Flight + 分布式锁 + 限流降级，全链路可观测。</div>
+      </div>
+    </div>
+
+    <div class="sec-heading r up" style="transition-delay:.26s;">里程碑与交付</div>
+    <table class="ktable up" style="transition-delay:.3s;">
+      <thead>
+        <tr><th>里程碑</th><th>交付物</th><th>状态</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>M1 需求与设计</td><td>PRD、系统设计规格、技术方案</td><td><span class="tag tag-g">已完成</span></td></tr>
+        <tr><td>M2 基础闭环</td><td>登录、发布、管理、状态操作</td><td><span class="tag tag-g">已完成</span></td></tr>
+        <tr><td>M3 扩展能力</td><td>版本化模板、动态表单、双重校验</td><td><span class="tag tag-g">已完成</span></td></tr>
+        <tr><td>M4 稳定性能力</td><td>缓存、限流、热点保护、降级</td><td><span class="tag tag-g">已完成</span></td></tr>
+        <tr><td>M5 工程验证</td><td>单元/模拟测试、静态检查、前端构建</td><td><span class="tag tag-g">已完成</span></td></tr>
+        <tr><td>M6 环境验收</td><td>PG 集成、浏览器 E2E、Compose、k6 实测</td><td><span class="tag tag-y">待补充</span></td></tr>
+        <tr><td>M7 分支集成</td><td>研发成果合并至 main@a379d38</td><td><span class="tag tag-g">已完成</span></td></tr>
+      </tbody>
+    </table>
+
+    <div class="sec-heading r up" style="transition-delay:.34s;">技术栈</div>
+    <div class="g3 up" style="transition-delay:.38s;">
+      <div class="card"><div class="card-label b">前端</div><div class="card-desc">React 18 + TypeScript + Vite + Ant Design</div></div>
+      <div class="card"><div class="card-label b">后端</div><div class="card-desc">Python 3.12 + FastAPI + SQLAlchemy 2.0 async</div></div>
+      <div class="card"><div class="card-label b">数据</div><div class="card-desc">PostgreSQL 16 + Redis 7</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== S2: 架构设计 ========== -->
+<section id="s2">
+  <div class="max860">
+    <div class="eyebrow o up" style="transition-delay:.05s;">ARCHITECTURE</div>
+    <h2 class="page-title up" style="transition-delay:.1s;">架构设计：模块化单体，预留演进空间</h2>
+    <p class="page-sub up" style="transition-delay:.14s;">
+      采用模块化单体而非过早微服务，模块间通过 Protocol 接口协作，未来可平滑拆分。
+    </p>
+
+    <div class="prompt-wrap up" style="transition-delay:.18s;margin-bottom:20px;">
+      <div class="prompt-bar"><span>系统拓扑</span></div>
+      <div class="prompt-text">浏览器 :8080 ── Vite/nginx ── FastAPI :8000 ── PostgreSQL
+                                    └──── Redis（缓存、锁、限流）</div>
+    </div>
+
+    <div class="g2 up" style="transition-delay:.22s;">
+      <div class="card o-bd">
+        <div class="card-label o">读写分离</div>
+        <div class="card-title">管理写链路 vs 公开读链路</div>
+        <div class="card-desc">管理写链路以<strong>数据库事务一致性</strong>为先；公开读链路以<strong>缓存命中率与降级保护</strong>为先。两条链路在代码层完全解耦。</div>
+      </div>
+      <div class="card b-bd">
+        <div class="card-label b">金额安全</div>
+        <div class="card-title">全链路拒绝浮点数</div>
+        <div class="card-desc">API 字符串 → DB NUMERIC(18,2) → 序列化字符串，彻底避免 JavaScript 精度歧义。</div>
+      </div>
+    </div>
+
+    <div class="sec-heading o up" style="transition-delay:.3s;">核心设计决策</div>
+    <div class="verify-grid up" style="transition-delay:.34s;">
+      <div class="verify-card v1">
+        <div class="verify-head"><span class="verify-num">1</span>模块化单体</div>
+        <div class="verify-body">
+          <span class="vline">避免 Demo 阶段的分布式复杂度</span>
+          <span class="vline">模块通过 Protocol 接口协作</span>
+          <div class="verify-brain">未来可按领域边界平滑拆分为独立服务</div>
+        </div>
+      </div>
+      <div class="verify-card v2">
+        <div class="verify-head"><span class="verify-num">2</span>数据库为事实源</div>
+        <div class="verify-body">
+          <span class="vline">PostgreSQL 保存权威数据</span>
+          <span class="vline">Redis 只作为可重建读缓存</span>
+          <div class="verify-brain">写链路重一致性，读链路重稳定性</div>
+        </div>
+      </div>
+      <div class="verify-card v3 full">
+        <div class="verify-head"><span class="verify-num">3</span>容量驱动演进</div>
+        <div class="verify-body">
+          <span class="vline">分片、集群等复杂能力由实测瓶颈触发</span>
+          <span class="vline">不提前堆砌未验证的分布式组件</span>
+          <div class="verify-brain">清晰模块边界 + 无状态 API + 可重建缓存 = 预留扩容路径</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== S3: L0 功能闭环 ========== -->
+<section id="s3">
+  <div class="max860">
+    <div class="eyebrow y up" style="transition-delay:.05s;">L0 FUNCTIONALITY</div>
+    <h2 class="page-title up" style="transition-delay:.1s;">功能闭环：管理 + 发布 + 状态机</h2>
+    <p class="page-sub up" style="transition-delay:.14s;">
+      完整覆盖题目要求的管理页面与全部公共字段规则。
+    </p>
+
+    <div class="g2 up" style="transition-delay:.2s;">
+      <div class="card y-bd">
+        <div class="card-label y">商品管理页</div>
+        <div class="card-title">列表 · 筛选 · 状态操作</div>
+        <div class="card-desc">
+          分页列表 + 组合筛选（关键词/类型/状态）<br>
+          详情查看与编辑入口<br>
+          单商品上架/下架/处罚（处罚为终态）<br>
+          批量上架/下架（全有或全无语义）
+        </div>
+      </div>
+      <div class="card o-bd">
+        <div class="card-label o">商品发布页</div>
+        <div class="card-title">公共字段 + 动态专属字段</div>
+        <div class="card-desc">
+          标题（≤60）· 短标题（≤120）· 价格 · 库存<br>
+          富文本详情（≤2000，nh3 白名单清理）<br>
+          主图（≤2MB）+ 副图（≤5张）<br>
+          发货方式 + 退货规则 + 动态专属字段
+        </div>
+      </div>
+    </div>
+
+    <div class="sec-heading y up" style="transition-delay:.28s;">状态机：处罚为终态</div>
+    <div class="prompt-wrap up" style="transition-delay:.32s;">
+      <div class="prompt-bar"><span>领域规则代码</span></div>
+      <div class="prompt-text">_ALLOWED_TRANSITIONS = {
+    ProductStatus.ON_SHELF:  {ProductStatus.OFF_SHELF, ProductStatus.PENALIZED},
+    ProductStatus.OFF_SHELF: {ProductStatus.ON_SHELF,  ProductStatus.PENALIZED},
+    ProductStatus.PENALIZED: set(),  # 终态，不可逆
+}</div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== S4: L1 亮点一 ========== -->
+<section id="s4">
+  <div class="max860">
+    <div class="eyebrow o up" style="transition-delay:.05s;">HIGHLIGHT 01</div>
+    <h2 class="page-title up" style="transition-delay:.1s;">版本化 Schema 驱动的多态商品</h2>
+    <p class="page-sub up" style="transition-delay:.14s;">
+      <span class="tag tag-o">L1 业务扩展突破</span>
+      &nbsp;不同业务场景字段要求截然不同，硬编码会导致模型膨胀。我们引入了不可变、版本化的字段模板机制。
+    </p>
+
+    <div class="g3 up" style="transition-delay:.2s;">
+      <div class="card y-bd">
+        <div class="card-label y">实物商品</div>
+        <div class="card-title">Physical Goods</div>
+        <div class="card-desc">重量、规格、物流模板等专属字段，支持 EMS / 物流 / 卡券三种发货方式。</div>
+      </div>
+      <div class="card p-bd">
+        <div class="card-label p">虚拟商品</div>
+        <div class="card-title">Virtual Goods</div>
+        <div class="card-desc">有效期、核销方式、兑换说明等虚拟属性，适配生服与数字商品场景。</div>
+      </div>
+      <div class="card b-bd">
+        <div class="card-label b">创意素材</div>
+        <div class="card-title">Creative Assets</div>
+        <div class="card-desc">素材类型、投放尺寸、文件地址等广告专属字段，支撑商业化素材管理。</div>
+      </div>
+    </div>
+
+    <div class="sec-heading o up" style="transition-delay:.28s;">混合模型：稳定列 + JSONB + 版本化 Schema</div>
+    <div class="g2 up" style="transition-delay:.32s;">
+      <div class="card" style="border-top:3px solid var(--orange);">
+        <div class="card-label" style="color:var(--orange);">为什么不用纯宽表</div>
+        <div class="card-title">空列膨胀 + 频繁迁移</div>
+        <div class="card-desc">每增加一种商品就修改表结构，产生大量空列，查询和维护成本持续上升。</div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--blue);">
+        <div class="card-label" style="color:var(--blue);">为什么不用纯 EAV</div>
+        <div class="card-title">查询复杂 + 约束困难</div>
+        <div class="card-desc">实体-属性-值模型查询、索引和开发体验复杂，难以保证数据一致性。</div>
+      </div>
+    </div>
+
+    <div class="card up" style="transition-delay:.38s;margin-top:14px;border-top:3px solid var(--green);">
+      <div class="card-label" style="color:var(--green);">我们的方案</div>
+      <div class="card-title">稳定公共列 + JSONB 动态属性 + 不可变模板约束</div>
+      <div class="card-desc">
+        稳定且高频查询的公共字段（title、price_amount、stock）使用强类型列；变化快的专属字段存入 JSONB，并由不可变模板负责约束。<br>
+        模板以 <code>(product_type, version)</code> 唯一标识，发布后不可原地修改。历史商品绑定原版本，新商品使用活动版本，后端拒绝未知字段。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== S5: L3 亮点二 ========== -->
+<section id="s5">
+  <div class="max860">
+    <div class="eyebrow g up" style="transition-delay:.05s;">HIGHLIGHT 02</div>
+    <h2 class="page-title up" style="transition-delay:.1s;">高 QPS 读链路防护体系</h2>
+    <p class="page-sub up" style="transition-delay:.14s;">
+      <span class="tag tag-g">L3 高并发突破</span>
+      &nbsp;构建了一套分层降级、可观测、可压测的公开读防护体系。
+    </p>
+
+    <div class="verify-grid up" style="transition-delay:.2s;">
+      <div class="verify-card v1">
+        <div class="verify-head"><span class="verify-num">1</span>Cache-Aside + 空值缓存</div>
+        <div class="verify-body">
+          <span class="vline">正常商品缓存命中直接返回</span>
+          <span class="vline">不存在商品写入短 TTL 空值，防止穿透</span>
+          <span class="vline">TTL 引入随机抖动，避免集中失效雪崩</span>
+        </div>
+      </div>
+      <div class="verify-card v2">
+        <div class="verify-head"><span class="verify-num">2</span>热点回源保护</div>
+        <div class="verify-body">
+          <span class="vline">进程内 Single-Flight 合并并发请求</span>
+          <span class="vline">Redis 分布式锁保证仅 1 个重建者回源</span>
+          <span class="vline">Lua 脚本安全释放锁，避免误删</span>
+        </div>
+      </div>
+      <div class="verify-card v3">
+        <div class="verify-head"><span class="verify-num">3</span>限流与降级</div>
+        <div class="verify-body">
+          <span class="vline">滑动窗口 IP 限流 → 429 + Retry-After</span>
+          <span class="vline">Redis 故障 → 受信号量约束的 DB 回源</span>
+          <span class="vline">DB 故障 → 503 快速失败，拒绝级联故障</span>
+        </div>
+      </div>
+      <div class="verify-card v6">
+        <div class="verify-head"><span class="verify-num">4</span>可观测性</div>
+        <div class="verify-body">
+          <span class="vline">Prometheus 指标：缓存命中/空值/未命中</span>
+          <span class="vline">回源原因、锁竞争、依赖错误、延迟分位值</span>
+          <span class="vline">每个响应关联 request_id，日志不记录敏感信息</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec-heading g up" style="transition-delay:.32s;">七层防护对照表</div>
+    <table class="ktable up" style="transition-delay:.36s;">
+      <thead>
+        <tr><th>风险</th><th>设计与实现</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>缓存穿透</td><td>UUID 格式校验 + 短 TTL 空值缓存</td></tr>
+        <tr><td>热点 Key 击穿</td><td>进程内 single-flight + Redis SET NX PX 跨实例短锁</td></tr>
+        <tr><td>缓存雪崩</td><td>基础 TTL 加随机抖动，避免集中失效</td></tr>
+        <tr><td>锁误释放</td><td>随机令牌 + Lua 比较令牌后释放</td></tr>
+        <tr><td>Redis 故障</td><td>受并发信号量保护的有限数据库回源</td></tr>
+        <tr><td>PostgreSQL 故障</td><td>短超时、不无限重试、快速返回 503</td></tr>
+        <tr><td>流量过载</td><td>Redis 滑动窗口按客户端 IP 限流，返回 429</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ========== S6: 数据模型与 API ========== -->
+<section id="s6">
+  <div class="max860">
+    <div class="eyebrow b up" style="transition-delay:.05s;">DATA & API</div>
+    <h2 class="page-title up" style="transition-delay:.1s;">数据模型与 API 设计</h2>
+    <p class="page-sub up" style="transition-delay:.14s;">
+      UUIDv7 改善索引局部性，金额使用 NUMERIC(18,2) 拒绝浮点数，API 统一前缀 /api/v1。
+    </p>
+
+    <div class="g2 up" style="transition-delay:.2s;">
+      <div class="card b-bd">
+        <div class="card-label b">商品主表 products</div>
+        <div class="card-title">混合模型设计</div>
+        <div class="card-desc">
+          <strong>id:</strong> UUIDv7，兼顾多实例写入与 B-Tree 局部性<br>
+          <strong>公共字段:</strong> title、price_amount(NUMERIC)、stock 等强类型列<br>
+          <strong>attributes:</strong> JSONB 保存类型专属字段值<br>
+          <strong>schema_version:</strong> 绑定模板版本，历史可复现<br>
+          <strong>version:</strong> 乐观锁版本号
+        </div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--purple);">
+        <div class="card-label" style="color:var(--purple);">索引策略</div>
+        <div class="card-title">精准索引，拒绝膨胀</div>
+        <div class="card-desc">
+          <strong>主键索引:</strong> 商品 ID 精确查询<br>
+          <strong>组合索引:</strong> (status, product_type, updated_at DESC, id DESC) 管理列表<br>
+          <strong>全文检索:</strong> PostgreSQL GIN 索引，避免前缀通配符扫描<br>
+          <strong>JSONB:</strong> 仅对高频筛选属性建表达式索引，不无差别全属性 GIN
+        </div>
+      </div>
+    </div>
+
+    <div class="sec-heading b up" style="transition-delay:.28s;">API 契约</div>
+    <table class="ktable up" style="transition-delay:.32s;">
+      <thead>
+        <tr><th>方法与路径</th><th>用途</th><th>鉴权</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>POST /auth/login</code></td><td>管理员登录</td><td>否</td></tr>
+        <tr><td><code>GET /product-schemas/{type}/active</code></td><td>获取活动字段模板</td><td>是</td></tr>
+        <tr><td><code>POST /products</code></td><td>发布商品</td><td>是</td></tr>
+        <tr><td><code>GET /products</code></td><td>分页与组合筛选</td><td>是</td></tr>
+        <tr><td><code>GET /products/{id}</code></td><td>管理端完整详情</td><td>是</td></tr>
+        <tr><td><code>PUT /products/{id}</code></td><td>携带版本号编辑</td><td>是</td></tr>
+        <tr><td><code>PATCH /products/{id}/status</code></td><td>单个状态更新</td><td>是</td></tr>
+        <tr><td><code>POST /products/batch-status</code></td><td>批量上下架</td><td>是</td></tr>
+        <tr><td><code>GET /public/products/{id}</code></td><td>高 QPS 公开详情</td><td>否</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ========== S7: 工程验证 ========== -->
+<section id="s7">
+  <div class="max860">
+    <div class="eyebrow g up" style="transition-delay:.05s;">ENGINEERING QUALITY</div>
+    <h2 class="page-title up" style="transition-delay:.1s;">工程成熟度与质量保障</h2>
+    <p class="page-sub up" style="transition-delay:.14s;">
+      138 个后端用例通过、33 个前端用例通过、Ruff 全量通过、生产构建成功。
+    </p>
+
+    <div class="g3 up" style="transition-delay:.2s;">
+      <div class="card g-bd">
+        <div class="card-label g">并发控制</div>
+        <div class="card-title">乐观锁 + 批量原子性</div>
+        <div class="card-desc">编辑携带 version 字段，冲突返回 409；批量操作采用全有或全无语义，失败整批回滚并返回具体原因。</div>
+      </div>
+      <div class="card r-bd">
+        <div class="card-label r">安全基线</div>
+        <div class="card-title">六维防护</div>
+        <div class="card-desc">JWT + Argon2 哈希、全参数化 SQL、富文本白名单清理、图片四重校验、CORS 限制、Makefile 防命令注入。</div>
+      </div>
+      <div class="card b-bd">
+        <div class="card-label b">静态验证</div>
+        <div class="card-title">Ruff + Compose + k6 语法</div>
+        <div class="card-desc">Ruff All checks passed、Compose 配置解析通过、两份 k6 脚本 node --check 语法通过。</div>
+      </div>
+    </div>
+
+    <div class="sec-heading g up" style="transition-delay:.28s;">测试金字塔与验证结果</div>
+    <table class="ktable up" style="transition-delay:.32s;">
+      <thead>
+        <tr><th>层级</th><th>规模</th><th>覆盖重点</th><th>状态</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>后端单元</td><td><strong>138 passed</strong>、16 skipped</td><td>领域规则、边界校验、状态机、缓存逻辑</td><td><span class="tag tag-g">通过</span></td></tr>
+        <tr><td>后端集成</td><td>10+ cases</td><td>事务回滚、乐观锁冲突、缓存失效、限流</td><td><span class="tag tag-y">待 PG</span></td></tr>
+        <tr><td>前端单元</td><td><strong>33 passed</strong></td><td>Schema 渲染、表单校验、列表交互</td><td><span class="tag tag-g">通过</span></td></tr>
+        <tr><td>E2E（Playwright）</td><td>1 条核心旅程</td><td>登录 → 发布 → 筛选 → 编辑 → 状态变更</td><td><span class="tag tag-y">待浏览器</span></td></tr>
+        <tr><td>压测（k6）</td><td>4 个场景脚本</td><td>缓存命中、不存在商品、热点过期、Redis 降级</td><td><span class="tag tag-y">脚本就绪</span></td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:12px;color:var(--gray3);margin-top:8px;">后端 16 个 skipped 用例依赖真实 PostgreSQL 测试库；最终全套集成、浏览器 E2E 和 k6 实测仍需在具备依赖的环境补充。</p>
+  </div>
+</section>
+
+<!-- ========== S8: 性能与演进 ========== -->
+<section id="s8">
+  <div class="max860">
+    <div class="eyebrow b up" style="transition-delay:.05s;">PERFORMANCE & EVOLUTION</div>
+    <h2 class="page-title up" style="transition-delay:.1s;">性能验收与容量演进</h2>
+    <p class="page-sub up" style="transition-delay:.14s;">
+      提供可复现的压测框架，并为每一步演进预留接口。关键原则：由真实容量数据触发，不提前实现。
+    </p>
+
+    <div class="sec-heading b up" style="transition-delay:.2s;">四大压测场景</div>
+    <div class="verify-grid up" style="transition-delay:.24s;">
+      <div class="verify-card v1">
+        <div class="verify-head"><span class="verify-num">1</span>缓存命中基线</div>
+        <div class="verify-body">
+          <span class="vline">50 VU × 30s</span>
+          <span class="vline">P95 &lt; 200ms、错误率 &lt; 0.1%</span>
+          <span class="vline">吞吐目标：相对 DB 直读 ≥ 5×</span>
+        </div>
+      </div>
+      <div class="verify-card v2">
+        <div class="verify-head"><span class="verify-num">2</span>数据库直读基线</div>
+        <div class="verify-body">
+          <span class="vline">独立无缓存端点作为对照组</span>
+          <span class="vline">计算真实吞吐倍率</span>
+          <span class="vline">管理 API 需鉴权，不作为基线</span>
+        </div>
+      </div>
+      <div class="verify-card v3">
+        <div class="verify-head"><span class="verify-num">3</span>热点失效</div>
+        <div class="verify-body">
+          <span class="vline">100 VU 并发请求同一商品</span>
+          <span class="vline">手动清理缓存键后立即压测</span>
+          <span class="vline"><strong>应用指标证明 DB 回源 ≈ 1 次</strong></span>
+        </div>
+      </div>
+      <div class="verify-card v4">
+        <div class="verify-head"><span class="verify-num">4</span>Redis 降级</div>
+        <div class="verify-body">
+          <span class="vline">暂停 Redis 服务</span>
+          <span class="vline">验证受限 DB 回源与快速失败比例</span>
+          <span class="vline">Makefile 不自动改 Redis 状态</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec-heading b up" style="transition-delay:.36s;">容量演进路线</div>
+    <table class="ktable up" style="transition-delay:.4s;">
+      <thead>
+        <tr><th>阶段</th><th>能力</th><th>触发条件</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>应用水平扩容</td><td>单机指标证明存在真实瓶颈</td></tr>
+        <tr><td>2</td><td>Redis Cluster</td><td>ProductCache 协议抽象，切换零侵入</td></tr>
+        <tr><td>3</td><td>PostgreSQL 只读副本</td><td>公开读天然分离，可独立路由</td></tr>
+        <tr><td>4</td><td>按商品 ID 分片</td><td>数据量与并发超过单机承载</td></tr>
+        <tr><td>5</td><td>对象存储 + CDN</td><td>图片元数据已解耦，可直接对接 S3/OSS</td></tr>
+        <tr><td>6</td><td>CDC 驱动搜索/推荐读模型</td><td>商品变更通过事件驱动 ES/向量索引</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ========== S9: 交付与启动 ========== -->
+<section id="s9">
+  <div class="max860">
+    <div class="eyebrow b up" style="transition-delay:.05s;">DELIVERY</div>
+    <h2 class="page-title up" style="transition-delay:.1s;">一键启动与验收状态</h2>
+    <p class="page-sub up" style="transition-delay:.14s;">
+      全新环境执行一条命令，所有服务通过健康检查，即可开始演示。
+    </p>
+
+    <div class="prompt-wrap up" style="transition-delay:.18s;margin-bottom:20px;">
+      <div class="prompt-bar"><span>Quick Start</span></div>
+      <div class="prompt-text">cp .env.example .env
+# 填入 JWT_SECRET 和 ADMIN_PASSWORD_HASH
+make up
+# 访问 http://127.0.0.1:8080/login</div>
+    </div>
+
+    <div class="sec-heading b up" style="transition-delay:.24s;">验收状态：已实现 vs 待验</div>
+    <table class="ktable up" style="transition-delay:.28s;">
+      <thead>
+        <tr><th>验收项</th><th>状态</th><th>证据</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>登录、三类商品发布</td><td><span class="tag tag-g">已实现</span></td><td>React 登录与动态发布页、FastAPI 认证与商品 API</td></tr>
+        <tr><td>分页筛选、详情、编辑、状态治理</td><td><span class="tag tag-g">已实现</span></td><td>管理列表、详情/编辑、单条与批量上下架、处罚终态</td></tr>
+        <tr><td>版本化动态字段</td><td><span class="tag tag-g">已实现</span></td><td>不可变模板、历史版本读取、前后端校验、未知字段拒绝</td></tr>
+        <tr><td>高 QPS 保护链路</td><td><span class="tag tag-g">已实现</span></td><td>Cache-Aside、空值缓存、TTL 抖动、锁、限流与降级</td></tr>
+        <tr><td>自动化测试和构建</td><td><span class="tag tag-g">已通过</span></td><td>后端 138 passed、前端 33 passed、生产构建成功</td></tr>
+        <tr><td>一键启动工程</td><td><span class="tag tag-y">待验</span></td><td>Compose 配置解析通过，未实际构建和启动容器</td></tr>
+        <tr><td>PostgreSQL 全套集成与浏览器 E2E</td><td><span class="tag tag-y">待验</span></td><td>Playwright 已发现 1 条核心旅程，未执行浏览器测试</td></tr>
+        <tr><td>四类 k6 性能场景</td><td><span class="tag tag-y">脚本就绪</span></td><td>压测脚本已完成，尚无真实吞吐与延迟数据</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ========== S10: 结语 ========== -->
+<section id="s10" style="background:var(--gray4);text-align:center;">
+  <div class="eyebrow r" style="animation:fade .6s .1s both;">THANK YOU</div>
+  <h2 style="font-size:clamp(28px,4vw,52px);font-weight:700;letter-spacing:-.03em;animation:fade .7s .2s both;">
+    StockStack 的价值
+  </h2>
+  <p style="font-size:15px;color:var(--gray2);max-width:640px;margin:16px auto 0;line-height:1.8;animation:fade .7s .35s both;">
+    不仅在于「功能做完」，而在于展示了如何从<strong>业务语义</strong>出发，<br>
+    通过<strong>版本化 Schema</strong> 优雅解决多态商品扩展问题，<br>
+    并通过<strong>分层缓存防护体系</strong>在高并发场景下保护系统稳定。
+  </p>
+  <p style="font-size:13px;color:var(--gray3);margin-top:24px;line-height:1.8;animation:fade .7s .5s both;">
+    每一个设计决策都附有取舍说明、测试验证和演进路径<br>
+    —— 这正是工程化思维的核心体现。
+  </p>
+  <p style="font-size:12px;color:var(--gray3);margin-top:40px;animation:fade .7s .65s both;">
+    汇报人：项目开发者 &nbsp;|&nbsp; 2026-08-21 &nbsp;|&nbsp; 欢迎提问与交流
+  </p>
+</section>
+
+<script>
+const bar = document.getElementById('bar');
+const sbItems = document.querySelectorAll('.sb-item[onclick]');
+const sbLines = document.querySelectorAll('.sb-line');
+const sections = [];
+document.querySelectorAll('section[id]').forEach(s => sections.push(s));
+
+function updateActive() {
+  const sy = window.scrollY;
+  const wh = window.innerHeight;
+  const total = document.body.scrollHeight - wh;
+  bar.style.width = (total > 0 ? (sy / total * 100) : 0) + '%';
+  let cur = sections[0];
+  sections.forEach(s => { if (s.offsetTop <= sy + wh * 0.5) cur = s; });
+  const curId = cur.id;
+  sbItems.forEach(item => {
+    const fn = item.getAttribute('onclick') || '';
+    const m = fn.match(/goTo\('(\w+)'\)/);
+    if (!m) return;
+    const tid = m[1];
+    item.classList.toggle('active', tid === curId);
+    item.classList.toggle('visited', cur.offsetTop > (document.getElementById(tid)?.offsetTop || 0));
+  });
+  sbLines.forEach((line, i) => {
+    const prev = sbItems[i];
+    if (prev) {
+      const fn = prev.getAttribute('onclick') || '';
+      const m = fn.match(/goTo\('(\w+)'\)/);
+      if (m) {
+        const tid = m[1];
+        const tEl = document.getElementById(tid);
+        line.classList.toggle('visited', tEl && tEl.offsetTop < cur.offsetTop);
+        const g = prev.dataset.g;
+        line.classList.toggle('r', g === 'r');
+        line.classList.toggle('o', g === 'o');
+        line.classList.toggle('y', g === 'y');
+        line.classList.toggle('g', g === 'g');
+        line.classList.toggle('b', g === 'b');
+      }
+    }
+  });
+  document.querySelectorAll('.up').forEach(el => {
+    const rect = el.getBoundingClientRect();
+    if (rect.top < wh * 0.88) el.classList.add('show');
+  });
+}
+
+function goTo(id) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+}
+
+function openLb(img) {
+  document.getElementById('lb-img').src = img.src;
+  document.getElementById('lb').classList.add('on');
+}
+function closeLb() { document.getElementById('lb').classList.remove('on'); }
+
+window.addEventListener('scroll', updateActive, { passive: true });
+updateActive();
+</script>
+</body>
+</html>
