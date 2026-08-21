@@ -8,7 +8,8 @@ from pathlib import Path
 from uuid import UUID
 
 from app.catalog.models import ProductFieldSchemaModel, ProductImageModel, ProductModel
-from app.db.session import SessionFactory, engine
+from app.core.config import get_settings
+from app.db.session import create_engine_and_session_factory
 from sqlalchemy import select
 
 LOAD_TEST_PRODUCT_ID = UUID("0198c8bc-1234-7abc-8def-0123456789ab")
@@ -85,23 +86,27 @@ def product(product_id: UUID, product_type: str, title: str, attributes: dict) -
 
 
 async def seed() -> None:
-    ensure_demo_image()
-    async with SessionFactory() as session:
-        for product_type, schema in SCHEMAS.items():
-            existing = await session.scalar(select(ProductFieldSchemaModel).where(ProductFieldSchemaModel.product_type == product_type, ProductFieldSchemaModel.version == 1))
-            if existing is None:
-                session.add(ProductFieldSchemaModel(product_type=product_type, version=1, schema=schema, active=True))
+    settings = get_settings()
+    engine, session_factory = create_engine_and_session_factory(settings.database_url)
+    try:
+        ensure_demo_image()
+        async with session_factory() as session:
+            for product_type, schema in SCHEMAS.items():
+                existing = await session.scalar(select(ProductFieldSchemaModel).where(ProductFieldSchemaModel.product_type == product_type, ProductFieldSchemaModel.version == 1))
+                if existing is None:
+                    session.add(ProductFieldSchemaModel(product_type=product_type, version=1, schema=schema, active=True))
 
-        ids = {
-            "physical": LOAD_TEST_PRODUCT_ID,
-            "virtual": UUID("0198c8bc-1234-7abc-8def-0123456789ac"),
-            "creative": UUID("0198c8bc-1234-7abc-8def-0123456789ad"),
-        }
-        for product_type, (title, attributes) in SAMPLES.items():
-            if await session.get(ProductModel, ids[product_type]) is None:
-                session.add(product(ids[product_type], product_type, title, attributes))
-        await session.commit()
-    await engine.dispose()
+            ids = {
+                "physical": LOAD_TEST_PRODUCT_ID,
+                "virtual": UUID("0198c8bc-1234-7abc-8def-0123456789ac"),
+                "creative": UUID("0198c8bc-1234-7abc-8def-0123456789ad"),
+            }
+            for product_type, (title, attributes) in SAMPLES.items():
+                if await session.get(ProductModel, ids[product_type]) is None:
+                    session.add(product(ids[product_type], product_type, title, attributes))
+            await session.commit()
+    finally:
+        await engine.dispose()
 
 
 if __name__ == "__main__":
