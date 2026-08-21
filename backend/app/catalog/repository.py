@@ -4,7 +4,7 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -95,11 +95,8 @@ class ProductRepository:
             else:
                 search_query = func.plainto_tsquery("simple", normalized_query)
                 filters.append(
-                    or_(
-                        func.to_tsvector("simple", ProductModel.title).op("@@")(
-                            search_query
-                        ),
-                        ProductModel.title.ilike(f"%{normalized_query}%"),
+                    func.to_tsvector("simple", ProductModel.title).op("@@")(
+                        search_query
                     )
                 )
         if product_type is not None:

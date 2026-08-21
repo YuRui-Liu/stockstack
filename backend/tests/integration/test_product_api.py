@@ -6,7 +6,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.catalog.domain import ProductType
 from app.catalog.repository import ProductRepository
-from app.core.config import Settings, get_settings
+from app.core.config import Settings
 from app.core.security import create_access_token
 from app.db.session import get_session
 from app.main import create_app
@@ -73,7 +73,6 @@ async def api(db_session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         yield db_session
 
     application.dependency_overrides[get_session] = session_override
-    application.dependency_overrides[get_settings] = lambda: settings
     token = create_access_token(
         settings.admin_username, settings.jwt_secret, timedelta(minutes=5)
     )
@@ -242,6 +241,9 @@ async def test_upload_returns_product_image_metadata_and_rejects_disguised_file(
     assert success.json()["url"].startswith("/uploads/")
     assert success.json()["size_bytes"] == 14
     assert success.json()["mime_type"] == "image/png"
+    stored = await client.get(success.json()["url"])
+    assert stored.status_code == 200
+    assert stored.content == b"\x89PNG\r\n\x1a\npixels"
 
     disguised = await client.post(
         "/api/v1/uploads/images",

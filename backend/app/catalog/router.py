@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from app.auth.router import require_admin
 from app.catalog.domain import ProductStatus, ProductType
@@ -30,6 +31,10 @@ from app.db.session import get_session
 router = APIRouter(prefix="/api/v1", tags=["catalog"])
 Admin = Annotated[str, Depends(require_admin)]
 Session = Annotated[AsyncSession, Depends(get_session)]
+
+
+def _store_image(root: str, validated):
+    return LocalImageStorage(root).save(validated)
 
 
 @router.get(
@@ -66,7 +71,9 @@ async def upload_image(
         validated = validate_image(
             content, file.content_type or "", file.filename or "upload"
         )
-        stored = LocalImageStorage(settings.upload_root).save(validated)
+        stored = await run_in_threadpool(
+            _store_image, settings.upload_root, validated
+        )
     except UploadValidationError as error:
         status_code = 413 if error.code == "image_too_large" else 415
         if error.code == "empty_image":

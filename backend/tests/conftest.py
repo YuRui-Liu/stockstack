@@ -1,5 +1,8 @@
 import os
 
+os.environ.setdefault("JWT_SECRET", "test-import-secret-with-enough-entropy")
+os.environ.setdefault("ADMIN_PASSWORD_HASH", "test-import-password-hash")
+
 import pytest
 from fastapi.testclient import TestClient
 from pwdlib import PasswordHash
