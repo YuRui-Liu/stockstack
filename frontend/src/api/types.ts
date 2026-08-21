@@ -87,4 +87,17 @@ export interface ProductView extends ProductCreate {
 
 export interface Paginated<T> { items: T[]; total: number; page: number; page_size: number }
 export type ProductPage = Paginated<ProductView>;
+export interface ProductListParams {
+  query?: string;
+  product_type?: ProductType;
+  status?: ProductStatus;
+  page: number;
+  page_size: number;
+}
+export interface StatusUpdate { target_status: ProductStatus; version: number }
+export interface ProductVersionRef { product_id: string; version: number }
+export interface BatchStatusUpdate {
+  product_ids: ProductVersionRef[];
+  target_status: "on_shelf" | "off_shelf";
+}
 export interface ImageUploadView { url: string; size_bytes: number; mime_type: ImageMimeType }

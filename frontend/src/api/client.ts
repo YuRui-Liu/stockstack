@@ -1,4 +1,4 @@
-import type { ErrorResponse, FieldSchema, ImageUploadView, ProductCreate, ProductUpdate, ProductView } from "./types";
+import type { BatchStatusUpdate, ErrorResponse, FieldSchema, ImageUploadView, ProductCreate, ProductListParams, ProductPage, ProductUpdate, ProductView, StatusUpdate } from "./types";
 import type { LoginRequest, LoginResponse } from "./types";
 
 export const ACCESS_TOKEN_KEY = "stockstack_access_token";
@@ -79,6 +79,24 @@ export function getProductSchema(productType: string, version: number): Promise<
 
 export function getProduct(productId: string): Promise<ProductView> {
   return apiRequest(`/api/v1/products/${productId}`);
+}
+
+export function listProducts(params: ProductListParams): Promise<ProductPage> {
+  const search = new URLSearchParams();
+  if (params.query) search.set("query", params.query);
+  if (params.product_type) search.set("product_type", params.product_type);
+  if (params.status) search.set("status", params.status);
+  search.set("page", String(params.page));
+  search.set("page_size", String(params.page_size));
+  return apiRequest(`/api/v1/products?${search.toString()}`);
+}
+
+export function updateProductStatus(productId: string, payload: StatusUpdate): Promise<ProductView> {
+  return apiRequest(`/api/v1/products/${productId}/status`, { method: "PATCH", body: JSON.stringify(payload) });
+}
+
+export function batchUpdateProductStatus(payload: BatchStatusUpdate): Promise<ProductView[]> {
+  return apiRequest("/api/v1/products/batch-status", { method: "POST", body: JSON.stringify(payload) });
 }
 
 export function createProduct(payload: ProductCreate): Promise<ProductView> {

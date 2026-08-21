@@ -1,0 +1,174 @@
+import { Alert, Button, Card, Form, Image, Input, Modal, Select, Space, Table, Tag, Typography } from "antd";
+import type { TablePaginationConfig } from "antd";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+
+import { ApiError, batchUpdateProductStatus, listProducts, updateProductStatus } from "../api/client";
+import type { ProductListParams, ProductStatus, ProductType, ProductView } from "../api/types";
+import { actionsForStatus, batchStatusActions, statusLabels, type StatusAction } from "./status";
+
+const productTypeLabels: Record<ProductType, string> = {
+  physical: "实物商品",
+  virtual: "虚拟商品",
+  creative: "创意商品",
+};
+
+function positiveInteger(value: string | null, fallback: number) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function paramsFromSearch(search: URLSearchParams): ProductListParams {
+  const productType = search.get("product_type");
+  const status = search.get("status");
+  return {
+    query: search.get("query") || undefined,
+    product_type: productType === "physical" || productType === "virtual" || productType === "creative" ? productType : undefined,
+    status: status === "on_shelf" || status === "off_shelf" || status === "penalized" ? status : undefined,
+    page: positiveInteger(search.get("page"), 1),
+    page_size: Math.min(100, positiveInteger(search.get("page_size"), 20)),
+  };
+}
+
+function errorText(error: unknown): string {
+  if (!(error instanceof ApiError)) return "商品操作失败，请重试";
+  const failures = Object.entries(error.response.field_errors).flatMap(([id, reasons]) => reasons.map((reason) => `${id}：${reason}`));
+  return failures.length ? failures.join("；") : error.response.message;
+}
+
+export default function ProductListPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const params = useMemo(() => paramsFromSearch(searchParams), [searchParams]);
+  const [form] = Form.useForm();
+  const [products, setProducts] = useState<ProductView[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [selectedIds, setSelectedIds] = useState<React.Key[]>([]);
+  const [confirming, setConfirming] = useState<{ product: ProductView; action: StatusAction }>();
+
+  useEffect(() => {
+    form.setFieldsValue({ query: params.query, product_type: params.product_type, status: params.status });
+  }, [form, params.product_type, params.query, params.status]);
+
+  useEffect(() => {
+    let current = true;
+    setLoading(true);
+    setError("");
+    void listProducts(params)
+      .then((page) => {
+        if (!current) return;
+        setProducts(page.items);
+        setTotal(page.total);
+      })
+      .catch((caught) => { if (current) setError(errorText(caught)); })
+      .finally(() => { if (current) setLoading(false); });
+    return () => { current = false; };
+  }, [params]);
+
+  const writeParams = (next: ProductListParams) => {
+    const search = new URLSearchParams();
+    if (next.query) search.set("query", next.query);
+    if (next.product_type) search.set("product_type", next.product_type);
+    if (next.status) search.set("status", next.status);
+    search.set("page", String(next.page));
+    search.set("page_size", String(next.page_size));
+    setSearchParams(search);
+  };
+
+  const changeStatus = async (product: ProductView, target: ProductStatus) => {
+    setError("");
+    try {
+      const updated = await updateProductStatus(product.id, { target_status: target, version: product.version });
+      setProducts((current) => current.map((item) => item.id === updated.id ? updated : item));
+    } catch (caught) {
+      setError(errorText(caught));
+    }
+  };
+
+  const runAction = (product: ProductView, action: StatusAction) => {
+    if (action.requiresConfirmation) setConfirming({ product, action });
+    else void changeStatus(product, action.target);
+  };
+
+  const batchChange = async (target: "on_shelf" | "off_shelf") => {
+    setError("");
+    const selected = products.filter((product) => selectedIds.includes(product.id));
+    try {
+      const updated = await batchUpdateProductStatus({
+        product_ids: selected.map((product) => ({ product_id: product.id, version: product.version })),
+        target_status: target,
+      });
+      const replacements = new Map(updated.map((product) => [product.id, product]));
+      setProducts((current) => current.map((product) => replacements.get(product.id) ?? product));
+      setSelectedIds([]);
+    } catch (caught) {
+      setError(errorText(caught));
+    }
+  };
+
+  const columns = [
+    { title: "主图", key: "image", render: (_: unknown, product: ProductView) => {
+      const main = product.images.find((image) => image.kind === "main");
+      return main ? <Image width={48} height={48} src={main.url} alt={`${product.title}主图`} preview={false} /> : "无主图";
+    } },
+    { title: "商品 ID", dataIndex: "id", key: "id" },
+    { title: "标题", dataIndex: "title", key: "title" },
+    { title: "类型", dataIndex: "product_type", key: "product_type", render: (value: ProductType) => productTypeLabels[value] },
+    { title: "价格", dataIndex: "price_amount", key: "price_amount", render: (value: string) => value },
+    { title: "库存", dataIndex: "stock", key: "stock" },
+    { title: "状态", dataIndex: "status", key: "status", render: (value: ProductStatus) => <Tag>{statusLabels[value]}</Tag> },
+    { title: "更新时间", dataIndex: "updated_at", key: "updated_at", render: (value: string) => new Date(value).toLocaleString("zh-CN", { hour12: false }) },
+    { title: "操作", key: "actions", render: (_: unknown, product: ProductView) => <Space wrap>
+      <Link to={`/products/${product.id}`}>详情</Link>
+      <Link to={`/products/${product.id}/edit`}>编辑</Link>
+      {actionsForStatus(product.status).map((action) => <Button key={action.target} type="link" onClick={() => runAction(product, action)}>{action.label}</Button>)}
+    </Space> },
+  ];
+
+  const changeTable = (pagination: TablePaginationConfig) => {
+    writeParams({ ...params, page: pagination.pageSize === params.page_size ? pagination.current ?? 1 : 1, page_size: pagination.pageSize ?? 20 });
+  };
+
+  return <main style={{ maxWidth: 1440, margin: "0 auto", padding: 24 }}>
+    <Space align="center" style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+      <Typography.Title level={1} style={{ margin: 0 }}>商品管理</Typography.Title>
+      <Link to="/products/new"><Button type="primary">发布商品</Button></Link>
+    </Space>
+    <Card>
+      <Form form={form} layout="inline" onFinish={(values) => writeParams({ ...params, ...values, query: values.query?.trim() || undefined, page: 1 })}>
+        <Form.Item name="query" label="商品关键词"><Input allowClear /></Form.Item>
+        <Form.Item name="product_type" label="商品类型"><Select allowClear style={{ width: 140 }} options={Object.entries(productTypeLabels).map(([value, label]) => ({ value, label }))} /></Form.Item>
+        <Form.Item name="status" label="商品状态"><Select allowClear style={{ width: 120 }} options={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))} /></Form.Item>
+        <Button type="primary" htmlType="submit">查询</Button>
+      </Form>
+      {error && <Alert role="alert" type="error" showIcon message={error} style={{ marginTop: 16 }} />}
+      <Space style={{ margin: "16px 0" }}>
+        {batchStatusActions.map((action) => <Button key={action.target} disabled={!selectedIds.length} onClick={() => void batchChange(action.target)}>{action.label}</Button>)}
+        <Select aria-label="每页条数" value={params.page_size} style={{ width: 120 }} onChange={(pageSize) => writeParams({ ...params, page: 1, page_size: pageSize })} options={[10, 20, 50, 100].map((value) => ({ value, label: `${value} 条/页` }))} />
+      </Space>
+      <Table<ProductView>
+        rowKey="id"
+        loading={loading}
+        locale={{ emptyText: loading ? "加载中" : "暂无商品" }}
+        dataSource={products}
+        columns={columns}
+        rowSelection={{ selectedRowKeys: selectedIds, onChange: setSelectedIds }}
+        pagination={{ current: params.page, pageSize: params.page_size, total, showSizeChanger: false }}
+        onChange={changeTable}
+      />
+    </Card>
+    <Modal
+      open={!!confirming}
+      getContainer={false}
+      title="确认处罚"
+      okText="确认处罚"
+      cancelText="取消"
+      onCancel={() => setConfirming(undefined)}
+      onOk={() => {
+        if (confirming) void changeStatus(confirming.product, confirming.action.target);
+        setConfirming(undefined);
+      }}
+    >确认将该商品设为处罚状态？</Modal>
+  </main>;
+}
