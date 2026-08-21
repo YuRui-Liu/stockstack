@@ -2,10 +2,12 @@ import os
 
 import pytest
 from fastapi.testclient import TestClient
+from pwdlib import PasswordHash
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.catalog.models import Base
+from app.core.config import get_settings
 from app.main import create_app
 
 
@@ -39,9 +41,17 @@ async def db_session(db_engine) -> AsyncSession:
 
 
 @pytest.fixture
-def client() -> TestClient:
+def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    monkeypatch.setenv("JWT_SECRET", "test-only-secret-with-enough-entropy")
+    monkeypatch.setenv("ADMIN_USERNAME", "test-admin")
+    monkeypatch.setenv(
+        "ADMIN_PASSWORD_HASH", PasswordHash.recommended().hash("correct-password")
+    )
+    monkeypatch.setenv("ACCESS_TOKEN_EXPIRE_MINUTES", "5")
+    get_settings.cache_clear()
     with TestClient(create_app()) as test_client:
         yield test_client
+    get_settings.cache_clear()
 
 
 @pytest.fixture
