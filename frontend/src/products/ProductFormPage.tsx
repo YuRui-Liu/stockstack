@@ -107,7 +107,7 @@ export default function ProductFormPage({ productId, initialImages = noImages }:
       <Form.Item name="description_html" label="商品描述"><Input.TextArea rows={5} maxLength={2000} /></Form.Item>
       <Form.Item name="delivery_method" label="配送方式" rules={[{ required: true }]}><Select options={[{ value: "ems", label: "EMS" }, { value: "logistics", label: "物流" }, { value: "voucher", label: "电子凭证" }]} /></Form.Item>
       <Form.Item name="return_rule" label="退货规则" rules={[{ required: true }]}><Select options={[{ value: "seven_days", label: "七天无理由" }, { value: "no_returns", label: "不支持退货" }]} /></Form.Item>
-      <Form.Item name="status" label="状态" rules={[{ required: true }]}><Select options={[{ value: "off_shelf", label: "下架" }, { value: "on_shelf", label: "上架" }, { value: "penalized", label: "处罚中" }]} /></Form.Item>
+      <Form.Item name="status" label="状态" rules={[{ required: true }]} extra={productId ? "状态请在商品管理列表中操作" : undefined}><Select disabled={!!productId} options={[{ value: "off_shelf", label: "下架" }, { value: "on_shelf", label: "上架" }, { value: "penalized", label: "处罚中" }]} /></Form.Item>
       {fieldSchema && <DynamicFields fieldSchema={fieldSchema} />}
       <Form.Item name="images" label="商品图片" rules={[{ validator: (_, value: ProductImageInput[] = []) => value.filter((image) => image.kind === "main").length === 1 ? Promise.resolve() : Promise.reject(new Error("请上传一张主图")) }]}><ImageFields onUploadingChange={setUploadsPending} /></Form.Item>
       <Button type="primary" htmlType="submit" loading={loading || saving || uploadsPending} disabled={!fieldSchema || !!schemaError || saving || uploadsPending}>{productId ? "保存修改" : "发布商品"}</Button>

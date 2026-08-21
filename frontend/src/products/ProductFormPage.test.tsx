@@ -33,6 +33,7 @@ describe("ProductFormPage", () => {
     );
     render(<ProductFormPage initialImages={[{ kind: "main", url: "/uploads/main.png", size_bytes: 12, mime_type: "image/png" }]} />);
     await screen.findByLabelText("重量（千克）");
+    expect(screen.getByLabelText("状态")).not.toBeDisabled();
     fireEvent.mouseDown(screen.getByLabelText("商品类型"));
     fireEvent.click(await screen.findByText("虚拟商品"));
     await screen.findByLabelText("核销方式");
@@ -182,7 +183,7 @@ describe("ProductFormPage", () => {
     expect(await screen.findByText("重量无效")).toBeInTheDocument();
   });
 
-  it("编辑时绑定详情 schema 版本、禁用类型并提示陈旧版本", async () => {
+  it("编辑时禁用状态并保留原状态提交", async () => {
     let activeRequested = false;
     let updatePayload: Record<string, unknown> | undefined;
     server.use(
@@ -196,10 +197,12 @@ describe("ProductFormPage", () => {
     );
     render(<ProductFormPage productId={penalizedProduct.id} />);
     expect(await screen.findByLabelText("商品类型")).toBeDisabled();
+    expect(screen.getByLabelText("状态")).toBeDisabled();
+    expect(screen.getByText("状态请在商品管理列表中操作")).toBeInTheDocument();
     expect(screen.getByLabelText("重量（千克）")).toHaveValue("0.5");
     fireEvent.click(screen.getByRole("button", { name: "保存修改" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("刷新");
-    expect(updatePayload).toMatchObject({ version: 3, schema_version: 1 });
+    expect(updatePayload).toMatchObject({ version: 3, schema_version: 1, status: "penalized" });
     expect(updatePayload).not.toHaveProperty("product_type");
     expect(activeRequested).toBe(false);
   });
