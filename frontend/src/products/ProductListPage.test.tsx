@@ -116,8 +116,9 @@ describe("ProductListPage", () => {
   });
 
   it("批量状态 409 时列出失败项、保留选择且不乐观修改行", async () => {
+    const anotherOffShelfProduct = { ...onShelfProduct, status: "off_shelf" as const };
     server.use(
-      http.get("*/api/v1/products", () => HttpResponse.json({ items: [offShelfProduct, onShelfProduct], total: 2, page: 1, page_size: 20 })),
+      http.get("*/api/v1/products", () => HttpResponse.json({ items: [offShelfProduct, anotherOffShelfProduct], total: 2, page: 1, page_size: 20 })),
       http.post("*/api/v1/products/batch-status", () => HttpResponse.json({
         code: "batch_status_conflict",
         message: "批量操作失败",
@@ -132,13 +133,34 @@ describe("ProductListPage", () => {
     fireEvent.click(within(rows[2]).getByRole("checkbox"));
     fireEvent.click(screen.getByRole("button", { name: "批量上架" }));
 
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(`${offShelfProduct.id}：版本冲突`);
-    expect(alert).toHaveTextContent(`${onShelfProduct.id}：状态不允许`);
+    const dialog = await screen.findByRole("dialog", { name: "批量操作失败" });
+    expect(dialog).toHaveTextContent(`${offShelfProduct.id}：版本冲突`);
+    expect(dialog).toHaveTextContent(`${onShelfProduct.id}：状态不允许`);
     expect(within(rows[1]).getByRole("checkbox")).toBeChecked();
     expect(within(rows[2]).getByRole("checkbox")).toBeChecked();
     expect(rows[1]).toHaveTextContent("已下架");
-    expect(rows[2]).toHaveTextContent("已上架");
+    expect(rows[2]).toHaveTextContent("已下架");
     expect(screen.queryByRole("button", { name: "批量处罚" })).not.toBeInTheDocument();
+  });
+
+  it("批量提交前拒绝包含处罚商品的非法混选且不发送请求", async () => {
+    let submitted = false;
+    server.use(
+      http.get("*/api/v1/products", () => HttpResponse.json({ items: [offShelfProduct, penalizedProduct], total: 2, page: 1, page_size: 20 })),
+      http.post("*/api/v1/products/batch-status", () => {
+        submitted = true;
+        return HttpResponse.json([]);
+      }),
+    );
+    renderPage();
+    await screen.findByText("春季外套");
+    const rows = screen.getAllByRole("row");
+    fireEvent.click(within(rows[1]).getByRole("checkbox"));
+    fireEvent.click(within(rows[2]).getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "批量上架" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "无法批量操作" });
+    expect(dialog).toHaveTextContent(`${penalizedProduct.id}：处罚中 → 已上架`);
+    expect(submitted).toBe(false);
   });
 });

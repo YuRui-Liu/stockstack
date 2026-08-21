@@ -4,6 +4,7 @@ import { Link, Navigate, Route, Routes, useParams } from "react-router-dom";
 import LoginPage from "../auth/LoginPage";
 import RequireAuth from "../auth/RequireAuth";
 import ProductFormPage from "../products/ProductFormPage";
+import ProductDetailPage from "../products/ProductDetailPage";
 import ProductListPage from "../products/ProductListPage";
 import { adminTheme } from "./theme";
 
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/products" element={protectedPage(<ProductListPage />)} />
         <Route path="/products/new" element={protectedPage(<ProductFormPage />)} />
+        <Route path="/products/:id" element={protectedPage(<ProductDetailPage />)} />
         <Route path="/products/:id/edit" element={protectedPage(<ProductEditor />)} />
         <Route path="*" element={<Navigate to="/products" replace />} />
       </Routes>

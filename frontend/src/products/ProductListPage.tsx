@@ -5,7 +5,7 @@ import { Link, useSearchParams } from "react-router-dom";
 
 import { ApiError, batchUpdateProductStatus, listProducts, updateProductStatus } from "../api/client";
 import type { ProductListParams, ProductStatus, ProductType, ProductView } from "../api/types";
-import { actionsForStatus, batchStatusActions, statusLabels, type StatusAction } from "./status";
+import { actionsForStatus, batchStatusActions, canTransition, statusLabels, type StatusAction } from "./status";
 
 const productTypeLabels: Record<ProductType, string> = {
   physical: "实物商品",
@@ -46,6 +46,7 @@ export default function ProductListPage() {
   const [error, setError] = useState("");
   const [selectedIds, setSelectedIds] = useState<React.Key[]>([]);
   const [confirming, setConfirming] = useState<{ product: ProductView; action: StatusAction }>();
+  const [batchDialog, setBatchDialog] = useState<{ title: string; lines: string[] }>();
 
   useEffect(() => {
     form.setFieldsValue({ query: params.query, product_type: params.product_type, status: params.status });
@@ -94,6 +95,14 @@ export default function ProductListPage() {
   const batchChange = async (target: "on_shelf" | "off_shelf") => {
     setError("");
     const selected = products.filter((product) => selectedIds.includes(product.id));
+    const invalid = selected.filter((product) => !canTransition(product.status, target));
+    if (invalid.length) {
+      setBatchDialog({
+        title: "无法批量操作",
+        lines: invalid.map((product) => `${product.id}：${statusLabels[product.status]} → ${statusLabels[target]}`),
+      });
+      return;
+    }
     try {
       const updated = await batchUpdateProductStatus({
         product_ids: selected.map((product) => ({ product_id: product.id, version: product.version })),
@@ -103,7 +112,10 @@ export default function ProductListPage() {
       setProducts((current) => current.map((product) => replacements.get(product.id) ?? product));
       setSelectedIds([]);
     } catch (caught) {
-      setError(errorText(caught));
+      if (caught instanceof ApiError && caught.status === 409) {
+        const lines = Object.entries(caught.response.field_errors).flatMap(([id, reasons]) => reasons.map((reason) => `${id}：${reason}`));
+        setBatchDialog({ title: "批量操作失败", lines: lines.length ? lines : [caught.response.message] });
+      } else setError(errorText(caught));
     }
   };
 
@@ -170,5 +182,14 @@ export default function ProductListPage() {
         setConfirming(undefined);
       }}
     >确认将该商品设为处罚状态？</Modal>
+    <Modal
+      open={!!batchDialog}
+      title={batchDialog?.title}
+      footer={<Button type="primary" onClick={() => setBatchDialog(undefined)}>知道了</Button>}
+      onCancel={() => setBatchDialog(undefined)}
+      getContainer={false}
+    >
+      <ul>{batchDialog?.lines.map((line) => <li key={line}>{line}</li>)}</ul>
+    </Modal>
   </main>;
 }
