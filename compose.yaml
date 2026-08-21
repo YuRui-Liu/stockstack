@@ -60,6 +60,9 @@ services:
   seed:
     <<: *api-image
     command: ["python", "/workspace/scripts/seed.py"]
+    environment:
+      <<: *api-environment
+      PYTHONPATH: /app
     volumes:
       - ./scripts:/workspace/scripts:ro
       - uploads:/app/uploads

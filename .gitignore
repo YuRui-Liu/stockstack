@@ -1,4 +1,6 @@
 .worktrees/
+/.env
+**/.env.local
 
 # Python / uv
 .venv/
