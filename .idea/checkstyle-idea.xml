@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CheckStyle-IDEA" serialisationVersion="2">
+    <checkstyleVersion>13.6.0</checkstyleVersion>
+    <scanScope>JavaOnly</scanScope>
+    <option name="thirdPartyClasspath" />
+    <option name="activeLocationIds">
+      <option value="ae4a29c0-e675-49e7-9870-5b75d167702c" />
+    </option>
+    <option name="locations">
+      <list>
+        <ConfigurationLocation id="bundled-sun-checks" type="BUNDLED" scope="All" description="Sun Checks">(bundled)</ConfigurationLocation>
+        <ConfigurationLocation id="bundled-google-checks" type="BUNDLED" scope="All" description="Google Checks">(bundled)</ConfigurationLocation>
+        <ConfigurationLocation id="ae4a29c0-e675-49e7-9870-5b75d167702c" type="LOCAL_FILE" scope="All" description="kuai">$PROJECT_DIR$/../ks-dev-source/src/main/resources/kuaishou-checkstyle-idea-v1.xml</ConfigurationLocation>
+      </list>
+    </option>
+  </component>
+</project>

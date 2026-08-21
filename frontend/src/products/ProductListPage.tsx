@@ -58,6 +58,7 @@ export default function ProductListPage() {
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const pendingIdsRef = useRef(new Set<string>());
   const [batchPending, setBatchPending] = useState(false);
+  const [refreshGeneration, setRefreshGeneration] = useState(0);
   const batchPendingRef = useRef(false);
   const queryGeneration = useRef(0);
 
@@ -82,7 +83,7 @@ export default function ProductListPage() {
       .catch((caught) => { if (current) setError(errorText(caught)); })
       .finally(() => { if (current) setLoading(false); });
     return () => { current = false; };
-  }, [params]);
+  }, [params, refreshGeneration]);
 
   const writeParams = (next: ProductListParams) => {
     queryGeneration.current += 1;
@@ -95,7 +96,8 @@ export default function ProductListPage() {
     if (next.status) search.set("status", next.status);
     search.set("page", String(next.page));
     search.set("page_size", String(next.page_size));
-    setSearchParams(search);
+    if (search.toString() === searchParams.toString()) setRefreshGeneration((current) => current + 1);
+    else setSearchParams(search);
   };
 
   const resetFilters = () => {

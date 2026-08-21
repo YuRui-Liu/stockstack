@@ -4,7 +4,7 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import String, cast, delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -107,25 +107,13 @@ class ProductRepository:
         filters = []
         normalized_query = query.strip() if query else ""
         if normalized_query:
-            try:
-                query_id = UUID(normalized_query)
-            except ValueError:
-                query_id = None
-            if query_id is not None:
-                filters.append(ProductModel.id == query_id)
-            else:
-                # 子串匹配而非全文检索：to_tsvector('simple', ...) 会把整段中文
-                # 视为单个 token，导致中文关键词永远无法命中。ILIKE 对中英文一致生效。
-                escaped = (
-                    normalized_query.replace("\\", "\\\\")
-                    .replace("%", "\\%")
-                    .replace("_", "\\_")
+            filters.append(
+                or_(
+                    ProductModel.title.icontains(normalized_query, autoescape=True),
+                    ProductModel.short_title.icontains(normalized_query, autoescape=True),
+                    cast(ProductModel.id, String).icontains(normalized_query, autoescape=True),
                 )
-                pattern = f"%{escaped}%"
-                filters.append(
-                    ProductModel.title.ilike(pattern, escape="\\")
-                    | ProductModel.short_title.ilike(pattern, escape="\\")
-                )
+            )
         if product_type is not None:
             filters.append(ProductModel.product_type == product_type.value)
         if status is not None:

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { message } from "antd";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { creativeSchema, penalizedProduct, physicalSchema, server, virtualSchema } from "../test/fixtures";
 import ProductFormPage from "./ProductFormPage";
@@ -24,6 +25,7 @@ async function fillPhysicalFields() {
 describe("ProductFormPage", () => {
   it("创建时切换类型读取 active schema 并提交完整契约", async () => {
     let submitted: Record<string, unknown> | undefined;
+    const onSaved = vi.fn();
     server.use(
       http.get("*/api/v1/product-schemas/:type/active", ({ params }) => HttpResponse.json(params.type === "virtual" ? virtualSchema : physicalSchema)),
       http.post("*/api/v1/products", async ({ request }) => {
@@ -31,7 +33,7 @@ describe("ProductFormPage", () => {
         return HttpResponse.json({ ...penalizedProduct, ...submitted, id: "created", version: 1 }, { status: 201 });
       }),
     );
-    render(<ProductFormPage initialImages={[{ kind: "main", url: "/uploads/main.png", size_bytes: 12, mime_type: "image/png" }]} />);
+    render(<ProductFormPage onSaved={onSaved} initialImages={[{ kind: "main", url: "/uploads/main.png", size_bytes: 12, mime_type: "image/png" }]} />);
     await screen.findByLabelText("重量（千克）");
     expect(screen.getByLabelText("状态")).not.toBeDisabled();
     fireEvent.mouseDown(screen.getByLabelText("商品类型"));
@@ -50,6 +52,24 @@ describe("ProductFormPage", () => {
       attributes: { validity_days: 30, verification_method: "code", redemption_instructions: "输入兑换码" },
       images: [{ kind: "main", url: "/uploads/main.png", size_bytes: 12, mime_type: "image/png" }],
     }));
+    expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ id: "created" }));
+  });
+
+  it("编辑成功后显示提示并通知页面跳转", async () => {
+    const onSaved = vi.fn();
+    const successMessage = vi.spyOn(message, "success");
+    server.use(
+      http.get("*/api/v1/products/:id", () => HttpResponse.json(penalizedProduct)),
+      http.get("*/api/v1/product-schemas/physical/1", () => HttpResponse.json(physicalSchema)),
+      http.put("*/api/v1/products/:id", () => HttpResponse.json({ ...penalizedProduct, title: "已更新商品", version: 4 })),
+    );
+
+    render(<ProductFormPage productId={penalizedProduct.id} onSaved={onSaved} />);
+    await screen.findByRole("button", { name: "保存修改" });
+    fireEvent.click(screen.getByRole("button", { name: "保存修改" }));
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ title: "已更新商品", version: 4 })));
+    expect(successMessage).toHaveBeenCalledWith("商品修改成功");
   });
 
   it("快速切换类型时只采用最后选择类型的 schema", async () => {

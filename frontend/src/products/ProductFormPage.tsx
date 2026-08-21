@@ -37,7 +37,13 @@ function NavAction({ to, children }: { to: string; children: React.ReactNode }) 
   return inRouter ? <Link to={to}>{children}</Link> : <a href={to}>{children}</a>;
 }
 
-export default function ProductFormPage({ productId, initialImages = noImages }: { productId?: string; initialImages?: ProductImageInput[] }) {
+interface ProductFormPageProps {
+  productId?: string;
+  initialImages?: ProductImageInput[];
+  onSaved?: (product: ProductView) => void;
+}
+
+export default function ProductFormPage({ productId, initialImages = noImages, onSaved }: ProductFormPageProps) {
   const inRouter = useInRouterContext();
   const [form] = Form.useForm();
   const [fieldSchema, setFieldSchema] = useState<FieldSchema>();
@@ -95,14 +101,20 @@ export default function ProductFormPage({ productId, initialImages = noImages }:
     setError("");
     const base = { ...values, stock: Number(values.stock), price_amount: String(values.price_amount), attributes: normalizeAttributes(values.attributes), images: imageInputs(values.images), schema_version: fieldSchema.version };
     try {
+      let savedProduct: ProductView;
       if (productId && product) {
         const { product_type: _productType, ...update } = base;
-        await updateProduct(productId, { ...update, version: product.version });
+        savedProduct = await updateProduct(productId, { ...update, version: product.version });
+      } else {
+        savedProduct = await createProduct(base);
       }
-      else await createProduct(base);
-      // 提交成功后跳回商品管理列表；列表组件会重新挂载并按 URL 参数查询，即自动刷新。
-      // 在脱离 Router 的单元测试里不触发跳转，保持表单挂载以便断言。
-      if (inRouter) setDone(true);
+      // 优先调用外部 onSaved 回调（App.tsx 中已注册 navigate("/products", { replace: true })）；
+      // 若无回调（如脱离 Router 的单元测试），则用内部 done 状态触发 Navigate。
+      if (onSaved) {
+        onSaved(savedProduct);
+      } else if (inRouter) {
+        setDone(true);
+      }
     } catch (caught) {
       if (caught instanceof ApiError) {
         if (Object.keys(caught.response.field_errors).length) form.setFields(fieldErrorsToForm(caught.response.field_errors));

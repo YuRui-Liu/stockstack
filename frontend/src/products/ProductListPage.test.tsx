@@ -43,6 +43,26 @@ function renderPage(initialEntry = "/products") {
 }
 
 describe("ProductListPage", () => {
+  it("连续使用相同筛选条件查询时仍重新加载数据", async () => {
+    let requests = 0;
+    server.use(http.get("*/api/v1/products", () => {
+      requests += 1;
+      return HttpResponse.json({ items: [onShelfProduct], total: 1, page: 1, page_size: 20 });
+    }));
+
+    renderPage("/products?status=on_shelf&page=1&page_size=20");
+    await screen.findByRole("row", { name: /夏季外套/ });
+    expect(requests).toBe(1);
+
+    fireEvent.click(screen.getByRole("button", { name: /查\s*询/ }));
+    await waitFor(() => expect(requests).toBe(2));
+    expect(screen.getByRole("row", { name: /夏季外套/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /查\s*询/ }));
+    await waitFor(() => expect(requests).toBe(3));
+    expect(screen.getByRole("row", { name: /夏季外套/ })).toBeInTheDocument();
+  });
+
   it("从 URL 恢复组合筛选并在筛选或 page_size 变化时重置页码", async () => {
     const requests: URL[] = [];
     server.use(http.get("*/api/v1/products", ({ request }) => {
@@ -90,6 +110,10 @@ describe("ProductListPage", () => {
     expect(row).toHaveTextContent("已下架");
     expect(within(row).getByRole("link", { name: "详情" })).toHaveAttribute("href", `/products/${offShelfProduct.id}`);
     expect(within(row).getByRole("link", { name: "编辑" })).toHaveAttribute("href", `/products/${offShelfProduct.id}/edit`);
+    expect(within(row).getByRole("link", { name: "详情" })).toHaveStyle({ fontSize: "14px", fontWeight: "400" });
+    expect(within(row).getByRole("button", { name: "上架" })).toHaveStyle({ fontSize: "14px", fontWeight: "400" });
+    expect(screen.getByRole("columnheader", { name: "操作" })).toHaveClass("ant-table-cell-fix-right");
+    expect(within(row).getByRole("link", { name: "详情" }).closest("td")).toHaveClass("ant-table-cell-fix-right");
     expect(screen.getByRole("row", { name: /处罚中的示例商品/ })).not.toHaveTextContent("恢复");
 
     fireEvent.click(within(row).getByRole("button", { name: "上架" }));
