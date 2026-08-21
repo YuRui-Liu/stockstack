@@ -7,10 +7,11 @@ from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
 
+from sqlalchemy import select
+
 from app.catalog.models import ProductFieldSchemaModel, ProductImageModel, ProductModel
 from app.core.config import get_settings
 from app.db.session import create_engine_and_session_factory
-from sqlalchemy import select
 
 LOAD_TEST_PRODUCT_ID = UUID("0198c8bc-1234-7abc-8def-0123456789ab")
 PNG = base64.b64decode(
