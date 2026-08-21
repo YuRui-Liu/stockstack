@@ -1,4 +1,7 @@
-.PHONY: up down logs migrate seed dev-api dev-web migrate-local seed-local test-backend test-frontend e2e
+.PHONY: up down logs migrate seed dev-api dev-web migrate-local seed-local test-backend test-frontend e2e load-cached load-missing load-hot load-degraded
+
+BASE_URL ?= http://localhost:8080
+PRODUCT_ID ?= 0198c8bc-1234-7abc-8def-0123456789ab
 
 up:
 	docker compose up --build -d --wait
@@ -35,3 +38,18 @@ test-frontend:
 
 e2e:
 	cd frontend && npm run test:e2e
+
+load-cached:
+	k6 run -e SCENARIO=cached -e BASE_URL=$(BASE_URL) -e PRODUCT_ID=$(PRODUCT_ID) loadtest/product-detail.js
+
+load-missing:
+	k6 run -e SCENARIO=missing -e BASE_URL=$(BASE_URL) -e PRODUCT_ID=$(PRODUCT_ID) loadtest/product-detail.js
+
+load-hot:
+	@echo "Operator step required: delete product:v1:$(PRODUCT_ID) immediately before this run (see docs/performance/report-template.md)."
+	k6 run -e SCENARIO=hot-expiry -e BASE_URL=$(BASE_URL) -e PRODUCT_ID=$(PRODUCT_ID) loadtest/product-detail.js
+
+load-degraded:
+	@echo "Operator step required: stop/pause Redis before this run and guarantee recovery afterward; this target never changes Redis state."
+	@echo "See docs/performance/report-template.md for Compose and local-service procedures."
+	k6 run -e BASE_URL=$(BASE_URL) -e PRODUCT_ID=$(PRODUCT_ID) loadtest/redis-degraded.js
