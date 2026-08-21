@@ -74,6 +74,16 @@ class ProductRepository:
             .options(selectinload(ProductModel.images))
         )
 
+    async def get_public(self, product_id: UUID) -> ProductModel | None:
+        return await self.session.scalar(
+            select(ProductModel)
+            .where(
+                ProductModel.id == product_id,
+                ProductModel.status == ProductStatus.ON_SHELF.value,
+            )
+            .options(selectinload(ProductModel.images))
+        )
+
     async def list(
         self,
         *,

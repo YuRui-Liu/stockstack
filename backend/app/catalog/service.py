@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterable
 from typing import Any
 from uuid import UUID
@@ -31,6 +32,9 @@ from app.catalog.schemas import (
     ProductView,
 )
 from app.core.errors import AppError
+from app.core.metrics import DEPENDENCY_ERRORS
+
+_INVALIDATION_TASKS: set[asyncio.Task[None]] = set()
 
 _SERVICE_ERRORS = (
     DuplicateProductId,
@@ -69,9 +73,31 @@ def _raise_repository_error(error: Exception) -> None:
 
 
 class ProductService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, cache: Any | None = None) -> None:
         self.session = session
         self.repository = ProductRepository(session)
+        self.cache = cache
+
+    async def _invalidate(self, *product_ids: UUID) -> None:
+        if self.cache is None:
+            return
+        for product_id in product_ids:
+            try:
+                await asyncio.wait_for(self.cache.delete(product_id), 0.2)
+            except Exception:  # noqa: BLE001 -- writes remain committed if Redis fails
+                DEPENDENCY_ERRORS.labels("redis", "cache_invalidate").inc()
+                task = asyncio.create_task(self._retry_invalidation(product_id))
+                _INVALIDATION_TASKS.add(task)
+                task.add_done_callback(_INVALIDATION_TASKS.discard)
+
+    async def _retry_invalidation(self, product_id: UUID) -> None:
+        for _attempt in range(2):
+            await asyncio.sleep(0.05)
+            try:
+                await asyncio.wait_for(self.cache.delete(product_id), 0.2)
+                return
+            except Exception:  # noqa: BLE001 -- bounded best-effort retry
+                DEPENDENCY_ERRORS.labels("redis", "cache_invalidate_retry").inc()
 
     async def active_schema(self, product_type: ProductType) -> ProductFieldSchemaModel:
         schema = await self.repository.get_active_schema(product_type)
@@ -108,6 +134,7 @@ class ProductService:
                 values, [image.model_dump() for image in payload.images]
             )
             await self.session.commit()
+            await self._invalidate(product.id)
             return _view(product)
         except _SERVICE_ERRORS as error:
             await self.session.rollback()
@@ -173,6 +200,7 @@ class ProductService:
                 product, [image.model_dump() for image in payload.images]
             )
             await self.session.commit()
+            await self._invalidate(product_id)
             return _view(product)
         except _SERVICE_ERRORS as error:
             await self.session.rollback()
@@ -186,6 +214,7 @@ class ProductService:
                 [(product_id, version)], target_status
             )
             await self.session.commit()
+            await self._invalidate(product_id)
             product = await self.repository.get_detail(products[0].id)
             assert product is not None
             return _view(product)
@@ -200,6 +229,7 @@ class ProductService:
                 ProductStatus(payload.target_status),
             )
             await self.session.commit()
+            await self._invalidate(*(product.id for product in products))
             detailed = [await self.repository.get_detail(product.id) for product in products]
             return [_view(product) for product in detailed if product is not None]
         except _SERVICE_ERRORS as error:

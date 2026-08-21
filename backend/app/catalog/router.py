@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
@@ -90,9 +90,9 @@ async def upload_image(
 
 @router.post("/products", response_model=ProductView, status_code=201)
 async def create_product(
-    payload: ProductCreate, _admin: Admin, session: Session
+    payload: ProductCreate, _admin: Admin, session: Session, request: Request
 ) -> ProductView:
-    return await ProductService(session).create(payload)
+    return await ProductService(session, request.app.state.product_cache).create(payload)
 
 
 @router.get("/products", response_model=ProductPage)
@@ -116,9 +116,9 @@ async def list_products(
 
 @router.post("/products/batch-status", response_model=list[ProductView])
 async def batch_status(
-    payload: ProductBatchStatusUpdate, _admin: Admin, session: Session
+    payload: ProductBatchStatusUpdate, _admin: Admin, session: Session, request: Request
 ) -> list[ProductView]:
-    return await ProductService(session).batch_status(payload)
+    return await ProductService(session, request.app.state.product_cache).batch_status(payload)
 
 
 @router.get("/products/{product_id}", response_model=ProductView)
@@ -130,9 +130,9 @@ async def product_detail(
 
 @router.put("/products/{product_id}", response_model=ProductView)
 async def update_product(
-    product_id: UUID, payload: ProductUpdate, _admin: Admin, session: Session
+    product_id: UUID, payload: ProductUpdate, _admin: Admin, session: Session, request: Request
 ) -> ProductView:
-    return await ProductService(session).update(product_id, payload)
+    return await ProductService(session, request.app.state.product_cache).update(product_id, payload)
 
 
 @router.patch("/products/{product_id}/status", response_model=ProductView)
@@ -141,7 +141,8 @@ async def update_product_status(
     payload: ProductStatusUpdate,
     _admin: Admin,
     session: Session,
+    request: Request,
 ) -> ProductView:
-    return await ProductService(session).update_status(
+    return await ProductService(session, request.app.state.product_cache).update_status(
         product_id, payload.version, payload.target_status
     )
