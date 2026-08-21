@@ -1,6 +1,6 @@
 import { Alert, Button, Form, Input, InputNumber, Radio, Select, Spin } from "antd";
 import { useEffect, useRef, useState } from "react";
-import { useInRouterContext, Link } from "react-router-dom";
+import { Navigate, useInRouterContext, Link } from "react-router-dom";
 
 import { ApiError, createProduct, getActiveProductSchema, getProduct, getProductSchema, updateProduct } from "../api/client";
 import type { FieldSchema, ProductCreate, ProductImageInput, ProductType, ProductView } from "../api/types";
@@ -38,6 +38,7 @@ function NavAction({ to, children }: { to: string; children: React.ReactNode }) 
 }
 
 export default function ProductFormPage({ productId, initialImages = noImages }: { productId?: string; initialImages?: ProductImageInput[] }) {
+  const inRouter = useInRouterContext();
   const [form] = Form.useForm();
   const [fieldSchema, setFieldSchema] = useState<FieldSchema>();
   const [product, setProduct] = useState<ProductView>();
@@ -46,6 +47,7 @@ export default function ProductFormPage({ productId, initialImages = noImages }:
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [uploadsPending, setUploadsPending] = useState(false);
+  const [done, setDone] = useState(false);
   const savingRef = useRef(false);
   const schemaRequest = useRef(0);
 
@@ -98,6 +100,9 @@ export default function ProductFormPage({ productId, initialImages = noImages }:
         await updateProduct(productId, { ...update, version: product.version });
       }
       else await createProduct(base);
+      // 提交成功后跳回商品管理列表；列表组件会重新挂载并按 URL 参数查询，即自动刷新。
+      // 在脱离 Router 的单元测试里不触发跳转，保持表单挂载以便断言。
+      if (inRouter) setDone(true);
     } catch (caught) {
       if (caught instanceof ApiError) {
         if (Object.keys(caught.response.field_errors).length) form.setFields(fieldErrorsToForm(caught.response.field_errors));
@@ -114,6 +119,8 @@ export default function ProductFormPage({ productId, initialImages = noImages }:
   const submitDisabled = !fieldSchema || !!schemaError || saving || uploadsPending;
 
   if (!initialized) return <Spin aria-label="加载商品表单" style={{ margin: 24 }} />;
+
+  if (done) return <Navigate to="/products" replace />;
 
   return <div className="ss-form-page">
     <div className="ss-form-header">

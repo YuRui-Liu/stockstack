@@ -1,4 +1,4 @@
-import { Button, ConfigProvider, Layout } from "antd";
+import { ConfigProvider, Layout } from "antd";
 import { Link, Navigate, Route, Routes, useParams } from "react-router-dom";
 
 import LoginPage from "../auth/LoginPage";
@@ -22,9 +22,6 @@ function ProductsLayout({ children }: { children: React.ReactNode }) {
           <span className="ss-app-brand-dot" aria-hidden="true" />
           StockStack
         </Link>
-        <nav className="ss-app-nav">
-          <Link to="/products/new"><Button type="primary">发布商品</Button></Link>
-        </nav>
       </Layout.Header>
       <Layout.Content>{children}</Layout.Content>
     </Layout>

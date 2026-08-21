@@ -114,11 +114,17 @@ class ProductRepository:
             if query_id is not None:
                 filters.append(ProductModel.id == query_id)
             else:
-                search_query = func.plainto_tsquery("simple", normalized_query)
+                # 子串匹配而非全文检索：to_tsvector('simple', ...) 会把整段中文
+                # 视为单个 token，导致中文关键词永远无法命中。ILIKE 对中英文一致生效。
+                escaped = (
+                    normalized_query.replace("\\", "\\\\")
+                    .replace("%", "\\%")
+                    .replace("_", "\\_")
+                )
+                pattern = f"%{escaped}%"
                 filters.append(
-                    func.to_tsvector("simple", ProductModel.title).op("@@")(
-                        search_query
-                    )
+                    ProductModel.title.ilike(pattern, escape="\\")
+                    | ProductModel.short_title.ilike(pattern, escape="\\")
                 )
         if product_type is not None:
             filters.append(ProductModel.product_type == product_type.value)

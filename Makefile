@@ -33,7 +33,7 @@ migrate-local:
 	@set -a; test ! -f .env || . ./.env; set +a; cd backend && uv run --frozen alembic upgrade head
 
 seed-local:
-	@set -a; test ! -f .env || . ./.env; set +a; cd backend && uv run --frozen python ../scripts/seed.py
+	@set -a; test ! -f .env || . ./.env; set +a; cd backend && PYTHONPATH=. uv run --frozen python ../scripts/seed.py
 
 test-backend:
 	cd backend && uv run --frozen pytest
