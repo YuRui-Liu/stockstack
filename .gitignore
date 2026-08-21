@@ -1,1 +1,15 @@
 .worktrees/
+
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Node / Vite / TypeScript
+node_modules/
+dist/
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
