@@ -16,16 +16,16 @@ seed:
 	docker compose run --rm seed
 
 dev-api:
-	cd backend && uv run --frozen uvicorn app.main:app --host 127.0.0.1 --port $${API_PORT:-8000}
+	@set -a; test ! -f .env || . ./.env; set +a; echo "Starting API at http://127.0.0.1:$${API_PORT:-8000}"; cd backend && uv run --frozen uvicorn app.main:app --host 127.0.0.1 --port $${API_PORT:-8000}
 
 dev-web:
-	cd frontend && npm run dev -- --host 127.0.0.1 --port $${WEB_PORT:-8080}
+	@set -a; test ! -f .env || . ./.env; set +a; echo "Starting web at http://127.0.0.1:$${WEB_PORT:-8080}; proxy target: $${VITE_DEV_PROXY_TARGET:-http://127.0.0.1:8000}"; cd frontend && VITE_DEV_PROXY_TARGET=$${VITE_DEV_PROXY_TARGET:-http://127.0.0.1:8000} npm run dev -- --host 127.0.0.1 --port $${WEB_PORT:-8080}
 
 migrate-local:
-	cd backend && uv run --frozen alembic upgrade head
+	@set -a; test ! -f .env || . ./.env; set +a; cd backend && uv run --frozen alembic upgrade head
 
 seed-local:
-	cd backend && uv run --frozen python ../scripts/seed.py
+	@set -a; test ! -f .env || . ./.env; set +a; cd backend && uv run --frozen python ../scripts/seed.py
 
 test-backend:
 	cd backend && uv run --frozen pytest
