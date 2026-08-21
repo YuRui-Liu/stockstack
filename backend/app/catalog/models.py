@@ -19,6 +19,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from uuid6 import uuid7
 
@@ -66,7 +67,10 @@ class ProductModel(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     delivery_method: Mapped[str] = mapped_column(String(32), nullable=False)
     return_rule: Mapped[str] = mapped_column(String(32), nullable=False)
-    attributes: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    # MutableDict tracks top-level changes; replace nested containers after editing them.
+    attributes: Mapped[dict[str, Any]] = mapped_column(
+        MutableDict.as_mutable(JSONB), nullable=False
+    )
     schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     images: Mapped[list["ProductImageModel"]] = relationship(
@@ -90,7 +94,10 @@ class ProductFieldSchemaModel(TimestampMixin, Base):
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid7)
     product_type: Mapped[str] = mapped_column(String(32), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
-    schema: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    # MutableDict tracks top-level changes; replace nested containers after editing them.
+    schema: Mapped[dict[str, Any]] = mapped_column(
+        MutableDict.as_mutable(JSONB), nullable=False
+    )
     active: Mapped[bool] = mapped_column(nullable=False, default=True, server_default="true")
 
 

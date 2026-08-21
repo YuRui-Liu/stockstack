@@ -26,6 +26,10 @@ class SchemaConflict(RepositoryError):
     pass
 
 
+class DuplicateProductId(RepositoryError):
+    pass
+
+
 class InvalidImages(RepositoryError):
     pass
 
@@ -134,7 +138,13 @@ class ProductRepository:
         product_versions: Iterable[tuple[UUID, int]],
         target_status: ProductStatus,
     ) -> list[ProductModel]:
-        expected = dict(product_versions)
+        materialized = list(product_versions)
+        seen: set[UUID] = set()
+        for product_id, _version in materialized:
+            if product_id in seen:
+                raise DuplicateProductId(f"duplicate product id: {product_id}")
+            seen.add(product_id)
+        expected = dict(materialized)
         rows = (
             await self.session.execute(
                 select(ProductModel)

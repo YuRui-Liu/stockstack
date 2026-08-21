@@ -11,6 +11,7 @@ from app.catalog.domain import (
 )
 from app.catalog.models import ProductFieldSchemaModel, ProductImageModel, ProductModel
 from app.catalog.repository import (
+    DuplicateProductId,
     ProductRepository,
     SchemaConflict,
     VersionConflict,
@@ -150,3 +151,40 @@ async def test_batch_status_update_is_all_or_nothing(db_session, failure):
         await db_session.scalar(select(func.count()).select_from(ProductImageModel))
         == 2
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("duplicate_version", [1, 2])
+async def test_batch_status_update_rejects_duplicate_product_ids(
+    db_session, duplicate_version
+):
+    repository = ProductRepository(db_session)
+    product = await repository.create_with_images(product_values(), image_values())
+    await db_session.commit()
+
+    with pytest.raises(DuplicateProductId):
+        async with db_session.begin():
+            await repository.batch_update_status(
+                [(product.id, 1), (product.id, duplicate_version)],
+                ProductStatus.ON_SHELF,
+            )
+
+    await db_session.refresh(product)
+    assert product.status == ProductStatus.OFF_SHELF.value
+    assert product.version == 1
+
+
+@pytest.mark.asyncio
+async def test_product_attributes_in_place_change_is_persisted(db_session):
+    repository = ProductRepository(db_session)
+    product = await repository.create_with_images(product_values(), image_values())
+    await db_session.commit()
+
+    product.attributes["weight_kg"] = 2
+    await db_session.commit()
+    product_id = product.id
+    db_session.expunge_all()
+
+    reloaded = await db_session.get(ProductModel, product_id)
+    assert reloaded is not None
+    assert reloaded.attributes == {"weight_kg": 2}
