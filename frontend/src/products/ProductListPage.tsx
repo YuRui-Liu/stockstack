@@ -1,4 +1,5 @@
-import { Alert, Button, Form, Image, Input, Modal, Select, Table, Tooltip } from "antd";
+import { Alert, Button, Carousel, Form, Image, Input, Modal, Select, Table, Tooltip } from "antd";
+import type { CarouselRef } from "antd/es/carousel";
 import type { TablePaginationConfig } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -14,6 +15,45 @@ const productTypeLabels: Record<ProductType, string> = {
 };
 
 const lowStockThreshold = 10;
+
+const campaignSlides = [
+  {
+    image: "/banners/product-publish.jpg",
+    eyebrow: "快手电商 · 商品经营中枢",
+    title: "商品发布",
+    accent: "发得快，管得稳",
+    description: "从发布、编辑到经营状态，在一个工作台里高效完成。",
+    tag: "效率升级",
+    features: ["多类型发布", "信息统一维护", "经营全链路"],
+  },
+  {
+    image: "/banners/inventory-control.jpg",
+    eyebrow: "库存洞察",
+    title: "库存透明",
+    accent: "经营心中有数",
+    description: "清晰查看库存与商品状态，让补货、调整和经营决策快人一步。",
+    tag: "库存无忧",
+    features: ["库存实时查看", "状态快速筛选", "数据清晰呈现"],
+  },
+  {
+    image: "/banners/lifecycle-governance.jpg",
+    eyebrow: "商品全生命周期",
+    title: "批量管理",
+    accent: "每次变更都可控",
+    description: "上下架、处罚与批量操作有序流转，让每一次变更都清晰可控。",
+    tag: "安全治理",
+    features: ["批量上下架", "状态有序流转", "异常操作确认"],
+  },
+  {
+    image: "/banners/product-types.jpg",
+    eyebrow: "多类型经营",
+    title: "多种商品",
+    accent: "一个经营工作台",
+    description: "实物、虚拟与创意商品统一管理，覆盖更多经营场景与增长机会。",
+    tag: "灵活拓展",
+    features: ["实物商品", "虚拟商品", "创意商品"],
+  },
+] as const;
 
 function positiveInteger(value: string | null, fallback: number) {
   const parsed = Number(value);
@@ -58,6 +98,7 @@ export default function ProductListPage() {
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const pendingIdsRef = useRef(new Set<string>());
   const [batchPending, setBatchPending] = useState(false);
+  const carouselRef = useRef<CarouselRef>(null);
   const [refreshGeneration, setRefreshGeneration] = useState(0);
   const batchPendingRef = useRef(false);
   const queryGeneration = useRef(0);
@@ -238,6 +279,33 @@ export default function ProductListPage() {
   };
 
   return <main className="ss-page">
+    <section className="campaign-carousel" aria-label="商品经营能力推荐">
+      <button className="campaign-arrow campaign-arrow--prev" type="button" aria-label="上一张海报" onClick={() => carouselRef.current?.prev()}>‹</button>
+      <Carousel ref={carouselRef} autoplay autoplaySpeed={5200} pauseOnHover dots={{ className: "campaign-dots" }}>
+        {campaignSlides.map((slide) => (
+          <div key={slide.title}>
+            <article className="campaign-slide">
+              <img className="campaign-art" src={slide.image} alt="" aria-hidden="true" />
+              <div className="campaign-shade" />
+              <div className="campaign-content">
+                <div className="campaign-brand-line">
+                  <img src="/brand/kuaishou-logo.png" alt="快手" />
+                  <span>{slide.eyebrow}</span>
+                </div>
+                <span className="campaign-tag">{slide.tag}</span>
+                <h2><span>{slide.title}</span><strong>{slide.accent}</strong></h2>
+                <p>{slide.description}</p>
+                <div className="campaign-features" aria-label="核心能力">
+                  {slide.features.map((feature) => <span key={feature}>{feature}</span>)}
+                </div>
+                <Link to="/products/new"><Button className="campaign-button" type="primary">立即发布商品</Button></Link>
+              </div>
+            </article>
+          </div>
+        ))}
+      </Carousel>
+      <button className="campaign-arrow campaign-arrow--next" type="button" aria-label="下一张海报" onClick={() => carouselRef.current?.next()}>›</button>
+    </section>
     <div className="ss-page-header">
       <div className="ss-page-header-left">
         <h1 className="ss-page-title">商品管理</h1>
