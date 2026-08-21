@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+import jwt
 import pytest
 
 from app.core.errors import AppError
@@ -27,3 +28,18 @@ def test_jwt_encode_decode_and_expiry() -> None:
         decode_access_token(expired, secret)
     with pytest.raises(AppError, match="Invalid authentication credentials"):
         decode_access_token(token, wrong_secret)
+
+
+@pytest.mark.parametrize("missing_claim", ["sub", "iat", "exp"])
+def test_jwt_requires_all_authentication_claims(missing_claim: str) -> None:
+    secret = "a-test-secret-that-is-at-least-32-bytes-long"
+    payload = jwt.decode(
+        create_access_token("admin", secret, timedelta(minutes=5)),
+        secret,
+        algorithms=["HS256"],
+    )
+    payload.pop(missing_claim)
+    token = jwt.encode(payload, secret, algorithm="HS256")
+
+    with pytest.raises(AppError, match="Invalid authentication credentials"):
+        decode_access_token(token, secret)

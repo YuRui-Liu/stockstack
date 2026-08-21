@@ -1,4 +1,7 @@
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+from app.core.errors import install_error_handling
 
 EXPECTED_ERROR_KEYS = {"code", "message", "field_errors", "request_id"}
 
@@ -60,3 +63,21 @@ def test_validation_error_uses_error_contract_and_request_id(client: TestClient)
     assert_error_contract(response, status=400, code="validation_error")
     assert response.json()["request_id"] == "test-request-123"
     assert "password" in response.json()["field_errors"]
+
+
+def test_unknown_error_is_safe_and_preserves_request_id() -> None:
+    application = FastAPI()
+    install_error_handling(application)
+
+    @application.get("/fails")
+    def fails() -> None:
+        raise RuntimeError("sensitive internal detail")
+
+    with TestClient(application, raise_server_exceptions=False) as test_client:
+        response = test_client.get(
+            "/fails", headers={"X-Request-ID": "known-request-123"}
+        )
+
+    assert_error_contract(response, status=500, code="internal_error")
+    assert response.json()["request_id"] == "known-request-123"
+    assert "sensitive" not in response.text

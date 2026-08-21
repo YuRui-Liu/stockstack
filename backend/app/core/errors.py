@@ -26,14 +26,16 @@ def _request_id(request: Request) -> str:
 
 
 def _response(request: Request, error: AppError) -> JSONResponse:
+    request_id = _request_id(request)
     return JSONResponse(
         status_code=error.status_code,
         content={
             "code": error.code,
             "message": error.message,
             "field_errors": error.field_errors,
-            "request_id": _request_id(request),
+            "request_id": request_id,
         },
+        headers={"X-Request-ID": request_id},
     )
 
 

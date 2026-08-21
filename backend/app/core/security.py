@@ -23,7 +23,12 @@ def create_access_token(subject: str, secret: str, expires_delta: timedelta) -> 
 
 def decode_access_token(token: str, secret: str) -> str:
     try:
-        payload = jwt.decode(token, secret, algorithms=["HS256"])
+        payload = jwt.decode(
+            token,
+            secret,
+            algorithms=["HS256"],
+            options={"require": ["sub", "iat", "exp"]},
+        )
         subject = payload.get("sub")
         if not isinstance(subject, str) or not subject:
             raise jwt.InvalidTokenError
