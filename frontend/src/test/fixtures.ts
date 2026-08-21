@@ -7,7 +7,7 @@ export const physicalSchema = {
   active: true,
   fields: [
     { key: "weight_kg", label: "重量（千克）", control: "number", data_type: "number", required: true, minimum: 0 },
-    { key: "specification", label: "规格", control: "text", data_type: "string", required: true, max_length: 120 },
+    { key: "specification", label: "规格", control: "text", data_type: "string", required: true, max_length: 100 },
     { key: "shipping_template", label: "物流模板", control: "select", data_type: "string", required: true, options: ["standard", "cold_chain"] },
   ],
 } as const;
@@ -30,7 +30,7 @@ export const creativeSchema = {
   fields: [
     { key: "asset_type", label: "素材类型", control: "select", data_type: "string", required: true, options: ["image", "video", "html"] },
     { key: "dimensions", label: "投放尺寸", control: "text", data_type: "string", required: true, pattern: "^[1-9][0-9]*x[1-9][0-9]*$" },
-    { key: "file_url", label: "文件地址", control: "text", data_type: "string", required: true, format: "uri" },
+    { key: "file_url", label: "文件地址", control: "text", data_type: "string", required: true, format: "http-url" },
   ],
 } as const;
 
