@@ -208,12 +208,14 @@ export default function ProductListPage() {
     {
       title: "操作",
       key: "actions",
+      fixed: "right" as const,
       width: 220,
       render: (_: unknown, product: ProductView) => <div className="ss-action-space">
-        <Link className="ss-action-link" to={`/products/${product.id}`}>详情</Link>
-        <Link className="ss-action-link" to={`/products/${product.id}/edit`}>编辑</Link>
+        <Link style={{ fontSize: 14, fontWeight: 400 }} className="ss-action-link" to={`/products/${product.id}`}>详情</Link>
+        <Link style={{ fontSize: 14, fontWeight: 400 }} className="ss-action-link" to={`/products/${product.id}/edit`}>编辑</Link>
         {actionsForStatus(product.status).map((action) => (
           <Button
+            style={{ fontSize: 14, fontWeight: 400 }}
             key={action.target}
             type="link"
             className={actionClassName(action.tone)}
@@ -224,7 +226,7 @@ export default function ProductListPage() {
         ))}
         {product.status === "penalized" && (
           <Tooltip title="处罚是终态，不能再变更状态">
-            <Button type="link" className="ss-action-btn ss-action-btn-off" disabled>已处罚</Button>
+            <Button style={{ fontSize: 14, fontWeight: 400 }} type="link" className="ss-action-btn ss-action-btn-off" disabled>已处罚</Button>
           </Tooltip>
         )}
       </div>,

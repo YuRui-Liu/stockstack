@@ -1,4 +1,4 @@
-import { Alert, Button, Form, Input, InputNumber, Radio, Select, Spin } from "antd";
+import { Alert, Button, Form, Input, InputNumber, Radio, Select, Spin, message } from "antd";
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useInRouterContext, Link } from "react-router-dom";
 
@@ -111,6 +111,7 @@ export default function ProductFormPage({ productId, initialImages = noImages, o
       // 优先调用外部 onSaved 回调（App.tsx 中已注册 navigate("/products", { replace: true })）；
       // 若无回调（如脱离 Router 的单元测试），则用内部 done 状态触发 Navigate。
       if (onSaved) {
+        message.success(productId ? "商品修改成功" : "商品发布成功");
         onSaved(savedProduct);
       } else if (inRouter) {
         setDone(true);
