@@ -10,6 +10,26 @@ const fallbackLabels: Record<string, string> = {
   asset_type: "素材类型", dimensions: "投放尺寸", file_url: "文件地址",
 };
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
+}
+
+export function validateRenderableSchema(fieldSchema: FieldSchema | undefined): string | null {
+  if (!fieldSchema || !isPlainObject(fieldSchema.schema) || fieldSchema.schema.type !== "object" || !isPlainObject(fieldSchema.schema.properties)) {
+    return "无法安全生成商品字段，请联系管理员";
+  }
+  for (const property of Object.values(fieldSchema.schema.properties)) {
+    if (!isPlainObject(property)) return "无法安全生成商品字段，请联系管理员";
+    const hasEnum = Array.isArray(property.enum) && property.enum.length > 0 && property.enum.every((item) => typeof item === "string" || typeof item === "number");
+    if (!hasEnum && !["string", "number", "integer"].includes(String(property.type))) return "无法安全生成商品字段，请联系管理员";
+    if (property.pattern !== undefined) {
+      if (typeof property.pattern !== "string") return "无法安全生成商品字段，请联系管理员";
+      try { new RegExp(property.pattern); } catch { return "无法安全生成商品字段，请联系管理员"; }
+    }
+  }
+  return null;
+}
+
 function fieldControl(key: string, property: JSONSchemaProperty): ReactNode | undefined {
   if (Array.isArray(property.enum) && property.enum.every((item) => ["string", "number"].includes(typeof item))) {
     return <Select options={property.enum.map((value) => ({ label: String(value), value }))} />;
@@ -27,9 +47,8 @@ function fieldControl(key: string, property: JSONSchemaProperty): ReactNode | un
 
 export default function DynamicFields({ fieldSchema }: { fieldSchema: FieldSchema }) {
   const schema = fieldSchema.schema;
-  if (schema.type !== "object" || !schema.properties || typeof schema.properties !== "object") {
-    return <Alert type="error" showIcon message="无法安全生成商品字段，请联系管理员" />;
-  }
+  const validationError = validateRenderableSchema(fieldSchema);
+  if (validationError) return <Alert type="error" showIcon message={validationError} />;
   const generated = Object.entries(schema.properties).map(([key, property]) => {
     let pattern: RegExp | undefined;
     try { pattern = property.pattern ? new RegExp(property.pattern) : undefined; }

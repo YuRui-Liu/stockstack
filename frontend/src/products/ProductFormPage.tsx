@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { ApiError, createProduct, getActiveProductSchema, getProduct, getProductSchema, updateProduct } from "../api/client";
 import type { FieldSchema, ProductCreate, ProductImageInput, ProductType, ProductView } from "../api/types";
-import DynamicFields from "./DynamicFields";
+import DynamicFields, { validateRenderableSchema } from "./DynamicFields";
 import ImageFields from "./ImageFields";
 import { fieldErrorsToForm, imageInputs, normalizeAttributes } from "./productForm";
 
@@ -21,6 +21,9 @@ export default function ProductFormPage({ productId, initialImages = noImages }:
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [uploadsPending, setUploadsPending] = useState(false);
+  const savingRef = useRef(false);
   const schemaRequest = useRef(0);
 
   useEffect(() => {
@@ -61,7 +64,9 @@ export default function ProductFormPage({ productId, initialImages = noImages }:
   };
 
   const submit = async (values: FormValues) => {
-    if (!fieldSchema) return;
+    if (!fieldSchema || validateRenderableSchema(fieldSchema) || savingRef.current || uploadsPending) return;
+    savingRef.current = true;
+    setSaving(true);
     setError("");
     const base = { ...values, stock: Number(values.stock), price_amount: String(values.price_amount), attributes: normalizeAttributes(values.attributes), images: imageInputs(values.images), schema_version: fieldSchema.version };
     try {
@@ -76,8 +81,13 @@ export default function ProductFormPage({ productId, initialImages = noImages }:
         if (caught.status === 409) setError(caught.response.code === "schema_version_conflict" ? "字段配置已更新，请重新载入页面后提交" : "商品已被其他人修改，请刷新页面后重试");
         else if (!Object.keys(caught.response.field_errors).length) setError(caught.response.message);
       } else setError("保存失败，请重试");
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   };
+
+  const schemaError = fieldSchema ? validateRenderableSchema(fieldSchema) : null;
 
   if (!initialized) return <Spin aria-label="加载商品表单" />;
   return <Card style={{ maxWidth: 880, margin: "24px auto" }}>
@@ -99,8 +109,8 @@ export default function ProductFormPage({ productId, initialImages = noImages }:
       <Form.Item name="return_rule" label="退货规则" rules={[{ required: true }]}><Select options={[{ value: "seven_days", label: "七天无理由" }, { value: "no_returns", label: "不支持退货" }]} /></Form.Item>
       <Form.Item name="status" label="状态" rules={[{ required: true }]}><Select options={[{ value: "off_shelf", label: "下架" }, { value: "on_shelf", label: "上架" }, { value: "penalized", label: "处罚中" }]} /></Form.Item>
       {fieldSchema && <DynamicFields fieldSchema={fieldSchema} />}
-      <Form.Item name="images" label="商品图片" rules={[{ validator: (_, value: ProductImageInput[] = []) => value.filter((image) => image.kind === "main").length === 1 ? Promise.resolve() : Promise.reject(new Error("请上传一张主图")) }]}><ImageFields /></Form.Item>
-      <Button type="primary" htmlType="submit" loading={loading} disabled={!fieldSchema}>{productId ? "保存修改" : "发布商品"}</Button>
+      <Form.Item name="images" label="商品图片" rules={[{ validator: (_, value: ProductImageInput[] = []) => value.filter((image) => image.kind === "main").length === 1 ? Promise.resolve() : Promise.reject(new Error("请上传一张主图")) }]}><ImageFields onUploadingChange={setUploadsPending} /></Form.Item>
+      <Button type="primary" htmlType="submit" loading={loading || saving || uploadsPending} disabled={!fieldSchema || !!schemaError || saving || uploadsPending}>{productId ? "保存修改" : "发布商品"}</Button>
     </Form>
   </Card>;
 }

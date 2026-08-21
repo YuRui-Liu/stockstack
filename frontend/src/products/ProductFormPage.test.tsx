@@ -13,6 +13,14 @@ function fillCommonFields() {
   fireEvent.change(screen.getByLabelText("商品描述"), { target: { value: "描述" } });
 }
 
+async function fillPhysicalFields() {
+  fillCommonFields();
+  fireEvent.change(screen.getByLabelText("重量（千克）"), { target: { value: "1" } });
+  fireEvent.change(screen.getByLabelText("规格"), { target: { value: "标准" } });
+  fireEvent.mouseDown(screen.getByLabelText("物流模板"));
+  fireEvent.click((await screen.findAllByText("standard")).at(-1)!);
+}
+
 describe("ProductFormPage", () => {
   it("创建时切换类型读取 active schema 并提交完整契约", async () => {
     let submitted: Record<string, unknown> | undefined;
@@ -75,7 +83,7 @@ describe("ProductFormPage", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("字段配置加载失败");
     expect(screen.queryByLabelText("重量（千克）")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "发布商品" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /发布商品/ })).toBeDisabled();
   });
 
   it("拒绝负价格并且不发送创建请求", async () => {
@@ -105,6 +113,57 @@ describe("ProductFormPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "发布商品" }));
     expect(await screen.findByText("请上传一张主图")).toBeInTheDocument();
     expect(submitted).toBe(false);
+  });
+
+  it("保存请求进行中时同步阻止重复提交", async () => {
+    let posts = 0;
+    let release: (() => void) | undefined;
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    server.use(
+      http.get("*/api/v1/product-schemas/physical/active", () => HttpResponse.json(physicalSchema)),
+      http.post("*/api/v1/products", async () => { posts += 1; await pending; return HttpResponse.json(penalizedProduct, { status: 201 }); }),
+    );
+    render(<ProductFormPage initialImages={[{ kind: "main", url: "/uploads/main.png", size_bytes: 12, mime_type: "image/png" }]} />);
+    await screen.findByLabelText("重量（千克）");
+    await fillPhysicalFields();
+    const form = screen.getByRole("button", { name: "发布商品" }).closest("form")!;
+    fireEvent.submit(form); fireEvent.submit(form);
+    await waitFor(() => expect(posts).toBe(1));
+    expect(screen.getByRole("button", { name: /发布商品/ })).toBeDisabled();
+    release?.();
+  });
+
+  it("不可渲染 schema 阻断提交", async () => {
+    let posts = 0;
+    server.use(
+      http.get("*/api/v1/product-schemas/physical/active", () => HttpResponse.json({ ...physicalSchema, schema: { type: "object", properties: { broken: null } } })),
+      http.post("*/api/v1/products", () => { posts += 1; return HttpResponse.json(penalizedProduct); }),
+    );
+    render(<ProductFormPage initialImages={[]} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("无法安全生成");
+    expect(screen.getByRole("button", { name: "发布商品" })).toBeDisabled();
+    expect(posts).toBe(0);
+  });
+
+  it("图片上传期间阻断提交，完成后恢复", async () => {
+    let posts = 0;
+    let release: (() => void) | undefined;
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    server.use(
+      http.get("*/api/v1/product-schemas/physical/active", () => HttpResponse.json(physicalSchema)),
+      http.post("*/api/v1/uploads/images", async () => { await pending; return HttpResponse.json({ url: "/uploads/main.png", size_bytes: 3, mime_type: "image/png" }, { status: 201 }); }),
+      http.post("*/api/v1/products", () => { posts += 1; return HttpResponse.json(penalizedProduct, { status: 201 }); }),
+    );
+    render(<ProductFormPage initialImages={[]} />);
+    await screen.findByLabelText("重量（千克）");
+    await fillPhysicalFields();
+    fireEvent.change(screen.getByLabelText("主图"), { target: { files: [new File(["png"], "main.png", { type: "image/png" })] } });
+    const button = screen.getByRole("button", { name: /发布商品/ });
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(posts).toBe(0);
+    release?.();
+    await waitFor(() => expect(button).not.toBeDisabled());
   });
 
   it("将服务端 field_errors 定位到动态字段", async () => {

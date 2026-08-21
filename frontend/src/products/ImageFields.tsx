@@ -1,5 +1,5 @@
 import { Alert, Space, Typography } from "antd";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { ApiError, uploadImage } from "../api/client";
 import type { ProductImageInput } from "../api/types";
@@ -7,9 +7,10 @@ import type { ProductImageInput } from "../api/types";
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const maxBytes = 2 * 1024 * 1024;
 
-export default function ImageFields({ value = [], onChange }: { value?: ProductImageInput[]; onChange?: (value: ProductImageInput[]) => void }) {
+export default function ImageFields({ value = [], onChange, onUploadingChange }: { value?: ProductImageInput[]; onChange?: (value: ProductImageInput[]) => void; onUploadingChange?: (uploading: boolean) => void }) {
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
+  const uploads = useRef(0);
 
   const handleFiles = async (kind: "main" | "gallery", files: File[]) => {
     setError("");
@@ -20,14 +21,20 @@ export default function ImageFields({ value = [], onChange }: { value?: ProductI
     const oversized = files.find((file) => file.size > maxBytes);
     if (oversized) return setError("单张图片不能超过 2 MiB");
     try {
+      uploads.current += 1;
       setUploading(true);
+      onUploadingChange?.(true);
       const uploaded = await Promise.all(files.map(uploadImage));
       const next = kind === "main" ? value.filter((item) => item.kind !== "main") : value.filter((item) => item.kind !== "gallery");
       onChange?.([...next, ...uploaded.map((item) => ({ ...item, kind }))]);
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.response.message : "图片上传失败，请重试");
     } finally {
-      setUploading(false);
+      uploads.current -= 1;
+      if (uploads.current === 0) {
+        setUploading(false);
+        onUploadingChange?.(false);
+      }
     }
   };
 
