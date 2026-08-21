@@ -21,6 +21,16 @@ class ProductImageInput(StrictRequestModel):
     mime_type: Literal["image/jpeg", "image/png", "image/webp"]
 
 
+class ProductImageView(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    kind: Literal["main", "gallery"]
+    url: str
+    sort_order: int
+    size_bytes: int
+    mime_type: Literal["image/jpeg", "image/png", "image/webp"]
+
+
 def _assert_image_collection(images: list[ProductImageInput]) -> None:
     main_count = sum(image.kind == "main" for image in images)
     gallery_count = sum(image.kind == "gallery" for image in images)
@@ -100,7 +110,7 @@ class ProductView(BaseModel):
     return_rule: ReturnRule
     attributes: dict[str, Any]
     schema_version: int
-    images: list[ProductImageInput] = Field(default_factory=list)
+    images: list[ProductImageView] = Field(default_factory=list)
     version: int
     created_at: datetime
     updated_at: datetime

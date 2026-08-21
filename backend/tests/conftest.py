@@ -1,7 +1,41 @@
+import os
+
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.catalog.models import Base
 from app.main import create_app
+
+
+@pytest.fixture
+async def db_engine():
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("TEST_DATABASE_URL must point to a real PostgreSQL database")
+    engine = create_async_engine(database_url, pool_pre_ping=True)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    yield engine
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.drop_all)
+    await engine.dispose()
+
+
+@pytest.fixture
+async def db_session(db_engine) -> AsyncSession:
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as session:
+        yield session
+        await session.rollback()
+    async with db_engine.begin() as connection:
+        await connection.execute(
+            text(
+                "TRUNCATE product_images, products, product_field_schemas "
+                "RESTART IDENTITY CASCADE"
+            )
+        )
 
 
 @pytest.fixture
