@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Form, Input, InputNumber, Select, Space, Spin, Typography } from "antd";
+import { Alert, Button, Card, Form, Input, InputNumber, message, Select, Space, Spin, Typography } from "antd";
 import { useEffect, useRef, useState } from "react";
 
 import { ApiError, createProduct, getActiveProductSchema, getProduct, getProductSchema, updateProduct } from "../api/client";
@@ -14,7 +14,13 @@ const typeOptions = [
 ];
 const noImages: ProductImageInput[] = [];
 
-export default function ProductFormPage({ productId, initialImages = noImages }: { productId?: string; initialImages?: ProductImageInput[] }) {
+interface ProductFormPageProps {
+  productId?: string;
+  initialImages?: ProductImageInput[];
+  onSaved?: (product: ProductView) => void;
+}
+
+export default function ProductFormPage({ productId, initialImages = noImages, onSaved }: ProductFormPageProps) {
   const [form] = Form.useForm();
   const [fieldSchema, setFieldSchema] = useState<FieldSchema>();
   const [product, setProduct] = useState<ProductView>();
@@ -70,11 +76,14 @@ export default function ProductFormPage({ productId, initialImages = noImages }:
     setError("");
     const base = { ...values, stock: Number(values.stock), price_amount: String(values.price_amount), attributes: normalizeAttributes(values.attributes), images: imageInputs(values.images), schema_version: fieldSchema.version };
     try {
+      let savedProduct: ProductView;
       if (productId && product) {
         const { product_type: _productType, ...update } = base;
-        await updateProduct(productId, { ...update, version: product.version });
+        savedProduct = await updateProduct(productId, { ...update, version: product.version });
       }
-      else await createProduct(base);
+      else savedProduct = await createProduct(base);
+      message.success(productId ? "商品修改成功" : "商品发布成功");
+      onSaved?.(savedProduct);
     } catch (caught) {
       if (caught instanceof ApiError) {
         if (Object.keys(caught.response.field_errors).length) form.setFields(fieldErrorsToForm(caught.response.field_errors));

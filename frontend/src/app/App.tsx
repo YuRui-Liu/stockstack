@@ -1,5 +1,5 @@
 import { Button, ConfigProvider, Layout, Typography } from "antd";
-import { Link, Navigate, Route, Routes, useParams } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
 import LoginPage from "../auth/LoginPage";
 import RequireAuth from "../auth/RequireAuth";
@@ -8,9 +8,15 @@ import ProductDetailPage from "../products/ProductDetailPage";
 import ProductListPage from "../products/ProductListPage";
 import { adminTheme } from "./theme";
 
+function ProductCreator() {
+  const navigate = useNavigate();
+  return <ProductFormPage onSaved={() => navigate("/products", { replace: true })} />;
+}
+
 function ProductEditor() {
   const { id } = useParams();
-  return <ProductFormPage productId={id} />;
+  const navigate = useNavigate();
+  return <ProductFormPage productId={id} onSaved={() => navigate("/products", { replace: true })} />;
 }
 
 function ProductsLayout({ children }: { children: React.ReactNode }) {
@@ -35,7 +41,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/products" element={protectedPage(<ProductListPage />)} />
-        <Route path="/products/new" element={protectedPage(<ProductFormPage />)} />
+        <Route path="/products/new" element={protectedPage(<ProductCreator />)} />
         <Route path="/products/:id" element={protectedPage(<ProductDetailPage />)} />
         <Route path="/products/:id/edit" element={protectedPage(<ProductEditor />)} />
         <Route path="*" element={<Navigate to="/products" replace />} />

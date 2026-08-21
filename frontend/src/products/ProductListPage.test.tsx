@@ -43,6 +43,26 @@ function renderPage(initialEntry = "/products") {
 }
 
 describe("ProductListPage", () => {
+  it("连续使用相同筛选条件查询时仍重新加载数据", async () => {
+    let requests = 0;
+    server.use(http.get("*/api/v1/products", () => {
+      requests += 1;
+      return HttpResponse.json({ items: [onShelfProduct], total: 1, page: 1, page_size: 20 });
+    }));
+
+    renderPage("/products?status=on_shelf&page=1&page_size=20");
+    await screen.findByRole("row", { name: /夏季外套/ });
+    expect(requests).toBe(1);
+
+    fireEvent.click(screen.getByRole("button", { name: /查\s*询/ }));
+    await waitFor(() => expect(requests).toBe(2));
+    expect(screen.getByRole("row", { name: /夏季外套/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /查\s*询/ }));
+    await waitFor(() => expect(requests).toBe(3));
+    expect(screen.getByRole("row", { name: /夏季外套/ })).toBeInTheDocument();
+  });
+
   it("从 URL 恢复组合筛选并在筛选或 page_size 变化时重置页码", async () => {
     const requests: URL[] = [];
     server.use(http.get("*/api/v1/products", ({ request }) => {
