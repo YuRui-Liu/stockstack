@@ -66,3 +66,46 @@ def test_local_storage_uses_generated_name_and_stays_inside_root(tmp_path: Path)
     assert stored.mime == "image/png"
     assert stored.size == len(image.content)
     assert stored.path.endswith(".png")
+
+
+def test_local_storage_rejects_symlink_root(tmp_path: Path) -> None:
+    actual_root = tmp_path / "actual"
+    actual_root.mkdir()
+    linked_root = tmp_path / "linked"
+    linked_root.symlink_to(actual_root, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symbolic link"):
+        LocalImageStorage(linked_root)
+
+
+def test_local_storage_removes_partial_file_when_write_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "uploads"
+    image = validate_image(PNG + b"pixels", "image/png", "photo.png")
+    original_open = Path.open
+
+    class FailingWriter:
+        def __init__(self, destination):
+            self.destination = destination
+
+        def __enter__(self):
+            self.destination.__enter__()
+            return self
+
+        def __exit__(self, *args):
+            return self.destination.__exit__(*args)
+
+        def write(self, content: bytes) -> None:
+            self.destination.write(content[:1])
+            raise OSError("disk write failed")
+
+    def failing_open(path: Path, *args, **kwargs):
+        return FailingWriter(original_open(path, *args, **kwargs))
+
+    monkeypatch.setattr(Path, "open", failing_open)
+
+    with pytest.raises(OSError, match="disk write failed"):
+        LocalImageStorage(root).save(image)
+
+    assert list(root.iterdir()) == []

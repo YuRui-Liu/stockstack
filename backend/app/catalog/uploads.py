@@ -1,5 +1,6 @@
 """Validation and local storage primitives for product image uploads."""
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -91,21 +92,56 @@ def validate_image(content: bytes, declared_mime: str, original_filename: str) -
 
 
 class LocalImageStorage:
-    """Store validated images beneath one local root without overwriting files."""
+    """Store images in an application-owned root without overwriting files.
+
+    The root must not be a symlink. This guards against configuration mistakes; it
+    does not defend against a local attacker who can rename the storage directory.
+    Uploaders must not have permission to modify the directory structure.
+    """
 
     def __init__(self, root: str | Path) -> None:
         self.root = Path(root)
+        if self.root.is_symlink():
+            raise ValueError("Upload root must not be a symbolic link")
+        self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if not self.root.is_dir():
+            raise ValueError("Upload root must be a directory")
+        self._resolved_root = self.root.resolve()
 
     def save(self, image: ValidatedImage) -> StoredImage:
-        self.root.mkdir(parents=True, exist_ok=True)
-        resolved_root = self.root.resolve()
-        relative_path = f"{uuid7()}{image.extension}"
-        target = (resolved_root / relative_path).resolve()
-        if not target.is_relative_to(resolved_root):
-            raise ValueError("Storage target must remain inside upload root")
+        if (
+            self.root.is_symlink()
+            or not self.root.is_dir()
+            or self.root.resolve() != self._resolved_root
+        ):
+            raise ValueError("Upload root changed after storage initialization")
 
-        with target.open("xb") as destination:
-            destination.write(image.content)
+        relative_path = f"{uuid7()}{image.extension}"
+        target = (self._resolved_root / relative_path).resolve()
+        if not target.is_relative_to(self._resolved_root):
+            raise ValueError("Storage target must remain inside upload root")
+        temporary = self._resolved_root / f".{uuid7()}.tmp"
+        published = False
+
+        try:
+            with temporary.open("xb") as destination:
+                destination.write(image.content)
+                destination.flush()
+                os.fsync(destination.fileno())
+            os.link(temporary, target)
+            published = True
+            temporary.unlink()
+        except BaseException:
+            if published:
+                try:
+                    target.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise
 
         return StoredImage(
             path=relative_path,
