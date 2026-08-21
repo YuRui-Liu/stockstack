@@ -43,6 +43,24 @@ def image_values() -> list[dict]:
 
 
 @pytest.mark.asyncio
+async def test_product_list_searches_title_and_id_by_contained_fragment(db_session):
+    repository = ProductRepository(db_session)
+    first = await repository.create_with_images(
+        product_values("红色保暖外套"), image_values()
+    )
+    await repository.create_with_images(product_values("夏季短袖"), image_values())
+    await db_session.commit()
+
+    title_items, title_total = await repository.list(query="保暖")
+    id_items, id_total = await repository.list(query=str(first.id)[9:17])
+
+    assert title_total == 1
+    assert [item.id for item in title_items] == [first.id]
+    assert id_total == 1
+    assert [item.id for item in id_items] == [first.id]
+
+
+@pytest.mark.asyncio
 async def test_optimistic_update_rejects_a_reused_version(db_session):
     repository = ProductRepository(db_session)
     product = await repository.create_with_images(product_values(), image_values())
