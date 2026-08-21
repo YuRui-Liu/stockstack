@@ -28,7 +28,8 @@ function isErrorResponse(value: unknown): value is ErrorResponse {
   );
 }
 
-function clearUnauthorizedSession() {
+function clearUnauthorizedSession(requestToken: string | null) {
+  if (!requestToken || sessionStorage.getItem(ACCESS_TOKEN_KEY) !== requestToken) return;
   sessionStorage.removeItem(ACCESS_TOKEN_KEY);
   window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
 }
@@ -45,7 +46,7 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
   const body: unknown = await response.json().catch(() => undefined);
 
   if (!response.ok) {
-    if (response.status === 401) clearUnauthorizedSession();
+    if (response.status === 401) clearUnauthorizedSession(token);
     const errorResponse: ErrorResponse = isErrorResponse(body)
       ? body
       : {
