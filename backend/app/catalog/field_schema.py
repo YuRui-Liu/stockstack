@@ -1,29 +1,59 @@
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urlsplit
 
 from jsonschema import Draft202012Validator, FormatChecker
+from pydantic import HttpUrl, TypeAdapter, ValidationError
 
 _FORMAT_CHECKER = FormatChecker()
+_HTTP_URL_ADAPTER = TypeAdapter(HttpUrl)
+_HOST_LABEL = re.compile(
+    r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+)
+
+
+def _has_valid_host_labels(host: str) -> bool:
+    if host.startswith("[") and host.endswith("]"):
+        return True
+    labels = host.removesuffix(".").split(".")
+    return bool(labels) and all(_HOST_LABEL.fullmatch(label) for label in labels)
+
+
+def _has_empty_port(value: str) -> bool:
+    match = re.match(r"^https?://([^/?#]*)", value, flags=re.IGNORECASE)
+    if match is None:
+        return False
+    authority = match.group(1).rsplit("@", 1)[-1]
+    if authority.startswith("["):
+        closing_bracket = authority.find("]")
+        return closing_bracket >= 0 and authority[closing_bracket + 1 :] == ":"
+    return authority.endswith(":")
 
 
 @_FORMAT_CHECKER.checks("http-url")
 def _is_http_url(value: object) -> bool:
-    if not isinstance(value, str) or any(character.isspace() for character in value):
+    """Validate stored asset URLs; the service never fetches them or resolves DNS."""
+    if not isinstance(value, str):
+        return False
+    if any(
+        character.isspace() or unicodedata.category(character) == "Cc"
+        for character in value
+    ):
+        return False
+    if "\\" in value or re.search(r"%(?![0-9A-Fa-f]{2})", value):
+        return False
+    if _has_empty_port(value):
         return False
     try:
-        parsed = urlsplit(value)
-        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-            return False
-        if parsed.username is not None or parsed.password is not None:
-            return False
-        if parsed.netloc.endswith(":"):
-            return False
-        _ = parsed.port
-    except ValueError:
+        parsed = _HTTP_URL_ADAPTER.validate_python(value)
+    except ValidationError:
         return False
-    return True
+    return (
+        parsed.username is None
+        and parsed.password is None
+        and _has_valid_host_labels(parsed.host)
+    )
 
 
 @dataclass(frozen=True, slots=True)
