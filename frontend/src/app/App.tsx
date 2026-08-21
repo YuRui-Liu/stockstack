@@ -1,4 +1,4 @@
-import { Button, ConfigProvider, Layout, Typography } from "antd";
+import { Button, ConfigProvider, Layout } from "antd";
 import { Link, Navigate, Route, Routes, useParams } from "react-router-dom";
 
 import LoginPage from "../auth/LoginPage";
@@ -7,6 +7,7 @@ import ProductFormPage from "../products/ProductFormPage";
 import ProductDetailPage from "../products/ProductDetailPage";
 import ProductListPage from "../products/ProductListPage";
 import { adminTheme } from "./theme";
+import "./design.css";
 
 function ProductEditor() {
   const { id } = useParams();
@@ -16,9 +17,14 @@ function ProductEditor() {
 function ProductsLayout({ children }: { children: React.ReactNode }) {
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Layout.Header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #d9dfe8" }}>
-        <Link to="/products"><Typography.Text strong style={{ fontSize: 18 }}>StockStack</Typography.Text></Link>
-        <Link to="/products/new"><Button type="primary">发布商品</Button></Link>
+      <Layout.Header className="ss-app-header">
+        <Link to="/products" className="ss-app-brand">
+          <span className="ss-app-brand-dot" aria-hidden="true" />
+          StockStack
+        </Link>
+        <nav className="ss-app-nav">
+          <Link to="/products/new"><Button type="primary">发布商品</Button></Link>
+        </nav>
       </Layout.Header>
       <Layout.Content>{children}</Layout.Content>
     </Layout>

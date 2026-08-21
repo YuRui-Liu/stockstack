@@ -1,4 +1,4 @@
-import { Alert, Space, Typography } from "antd";
+import { Alert } from "antd";
 import { useRef, useState } from "react";
 
 import { ApiError, uploadImage } from "../api/client";
@@ -38,10 +38,52 @@ export default function ImageFields({ value = [], onChange, onUploadingChange }:
     }
   };
 
-  return <Space direction="vertical" style={{ width: "100%" }}>
-    <label>主图（必填）<input aria-label="主图" type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={(event) => void handleFiles("main", Array.from(event.target.files ?? []))} /></label>
-    <label>副图（最多 5 张）<input aria-label="副图" type="file" multiple accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={(event) => void handleFiles("gallery", Array.from(event.target.files ?? []))} /></label>
-    <Typography.Text type="secondary">已上传 {value.filter((item) => item.kind === "main").length} 张主图、{value.filter((item) => item.kind === "gallery").length} 张副图</Typography.Text>
+  const mainImages = value.filter((item) => item.kind === "main");
+  const galleryImages = value.filter((item) => item.kind === "gallery");
+
+  return <div className="ss-upload-group">
+    <div className="ss-upload-field">
+      <label className="ss-upload-label">
+        <span className="ss-field-required">*</span>商品主图
+        <input
+          className="ss-upload-input"
+          aria-label="主图"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          disabled={uploading}
+          onChange={(event) => void handleFiles("main", Array.from(event.target.files ?? []))}
+        />
+      </label>
+      <span className="ss-upload-hint">主图展示在列表和详情页，建议 800x800px 正方形，单张不超过 2 MiB</span>
+      {mainImages.length > 0 && (
+        <div className="ss-upload-preview">
+          {mainImages.map((image) => <img key={image.url} src={image.url} alt="主图预览" />)}
+        </div>
+      )}
+    </div>
+
+    <div className="ss-upload-field">
+      <label className="ss-upload-label">
+        商品副图
+        <input
+          className="ss-upload-input"
+          aria-label="副图"
+          type="file"
+          multiple
+          accept="image/jpeg,image/png,image/webp"
+          disabled={uploading}
+          onChange={(event) => void handleFiles("gallery", Array.from(event.target.files ?? []))}
+        />
+      </label>
+      <span className="ss-upload-hint">最多上传 5 张副图，每张不超过 2 MiB，用于展示商品多角度细节</span>
+      {galleryImages.length > 0 && (
+        <div className="ss-upload-preview">
+          {galleryImages.map((image, index) => <img key={image.url} src={image.url} alt={`副图预览 ${index + 1}`} />)}
+        </div>
+      )}
+    </div>
+
+    <span className="ss-upload-hint">已上传 {mainImages.length} 张主图、{galleryImages.length} 张副图</span>
     {error && <Alert type="error" showIcon message={error} />}
-  </Space>;
+  </div>;
 }

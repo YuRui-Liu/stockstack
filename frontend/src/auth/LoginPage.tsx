@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Form, Input, Space, Typography } from "antd";
+import { Alert, Button, Form, Input } from "antd";
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, type Location, type To } from "react-router-dom";
 
@@ -43,22 +43,16 @@ export default function LoginPage() {
   };
 
   return (
-    <main
-      style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24, background: "#f5f7fa" }}
-    >
-      <Card style={{ width: "100%", maxWidth: 400 }}>
-        <Space direction="vertical" size={4} style={{ width: "100%", marginBottom: 24 }}>
-          <Typography.Text strong style={{ color: "#1677ff" }}>StockStack</Typography.Text>
-          <Typography.Title level={1} style={{ fontSize: 28, margin: 0 }}>管理员登录</Typography.Title>
-          <Typography.Text type="secondary">登录后管理商品信息与发布状态</Typography.Text>
-        </Space>
-
+    <main className="ss-login-page">
+      <div className="ss-login-card">
+        <span className="ss-login-brand">StockStack</span>
+        <h1 className="ss-login-title">管理员登录</h1>
+        <p className="ss-login-desc">登录后管理商品信息与发布状态</p>
         {errorMessage ? (
           <div ref={errorSummaryRef} tabIndex={-1} role="alert" style={{ marginBottom: 16 }}>
             <Alert type="error" showIcon role="presentation" message={errorMessage} />
           </div>
         ) : null}
-
         <Form<LoginRequest>
           layout="vertical"
           requiredMark={false}
@@ -66,16 +60,16 @@ export default function LoginPage() {
           onFinish={handleSubmit}
         >
           <Form.Item name="username" label="管理员账号" rules={[{ required: true, message: "请输入管理员账号" }]}>
-            <Input autoFocus autoComplete="username" disabled={submitting} />
+            <Input autoFocus autoComplete="username" size="large" disabled={submitting} placeholder="请输入管理员账号" />
           </Form.Item>
           <Form.Item name="password" label="密码" rules={[{ required: true, message: "请输入密码" }]}>
-            <Input.Password autoComplete="current-password" disabled={submitting} />
+            <Input.Password autoComplete="current-password" size="large" disabled={submitting} placeholder="请输入密码" />
           </Form.Item>
-          <Button type="primary" htmlType="submit" loading={submitting} block>
+          <Button type="primary" htmlType="submit" size="large" loading={submitting} block>
             登录
           </Button>
         </Form>
-      </Card>
+      </div>
     </main>
   );
 }
