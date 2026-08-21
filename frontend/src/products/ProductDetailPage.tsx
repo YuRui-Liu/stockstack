@@ -20,6 +20,7 @@ export default function ProductDetailPage() {
   useEffect(() => {
     let current = true;
     setError("");
+    setProduct(undefined);
     void getProduct(id)
       .then((result) => { if (current) setProduct(result); })
       .catch((caught) => { if (current) setError(caught instanceof ApiError ? caught.response.message : "商品详情加载失败"); });
@@ -27,7 +28,7 @@ export default function ProductDetailPage() {
   }, [id]);
 
   if (error) return <Alert role="alert" type="error" showIcon message={error} style={{ margin: 24 }} />;
-  if (!product) return <Spin aria-label="加载商品详情" style={{ margin: 24 }} />;
+  if (!product || product.id !== id) return <Spin aria-label="加载商品详情" style={{ margin: 24 }} />;
 
   return <main style={{ maxWidth: 1000, margin: "24px auto" }}>
     <Card>

@@ -1,6 +1,6 @@
 import { Alert, Button, Card, Form, Image, Input, Modal, Select, Space, Table, Tag, Typography } from "antd";
 import type { TablePaginationConfig } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { ApiError, batchUpdateProductStatus, listProducts, updateProductStatus } from "../api/client";
@@ -47,6 +47,11 @@ export default function ProductListPage() {
   const [selectedIds, setSelectedIds] = useState<React.Key[]>([]);
   const [confirming, setConfirming] = useState<{ product: ProductView; action: StatusAction }>();
   const [batchDialog, setBatchDialog] = useState<{ title: string; lines: string[] }>();
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const pendingIdsRef = useRef(new Set<string>());
+  const [batchPending, setBatchPending] = useState(false);
+  const batchPendingRef = useRef(false);
+  const queryGeneration = useRef(0);
 
   useEffect(() => {
     form.setFieldsValue({ query: params.query, product_type: params.product_type, status: params.status });
@@ -54,8 +59,12 @@ export default function ProductListPage() {
 
   useEffect(() => {
     let current = true;
+    queryGeneration.current += 1;
     setLoading(true);
     setError("");
+    setProducts([]);
+    setTotal(0);
+    setSelectedIds([]);
     void listProducts(params)
       .then((page) => {
         if (!current) return;
@@ -68,6 +77,10 @@ export default function ProductListPage() {
   }, [params]);
 
   const writeParams = (next: ProductListParams) => {
+    queryGeneration.current += 1;
+    setSelectedIds([]);
+    setProducts([]);
+    setTotal(0);
     const search = new URLSearchParams();
     if (next.query) search.set("query", next.query);
     if (next.product_type) search.set("product_type", next.product_type);
@@ -78,12 +91,19 @@ export default function ProductListPage() {
   };
 
   const changeStatus = async (product: ProductView, target: ProductStatus) => {
+    if (pendingIdsRef.current.has(product.id)) return;
+    pendingIdsRef.current.add(product.id);
+    setPendingIds(new Set(pendingIdsRef.current));
+    const generation = queryGeneration.current;
     setError("");
     try {
       const updated = await updateProductStatus(product.id, { target_status: target, version: product.version });
-      setProducts((current) => current.map((item) => item.id === updated.id ? updated : item));
+      if (generation === queryGeneration.current) setProducts((current) => current.map((item) => item.id === updated.id ? updated : item));
     } catch (caught) {
-      setError(errorText(caught));
+      if (generation === queryGeneration.current) setError(errorText(caught));
+    } finally {
+      pendingIdsRef.current.delete(product.id);
+      setPendingIds(new Set(pendingIdsRef.current));
     }
   };
 
@@ -93,8 +113,10 @@ export default function ProductListPage() {
   };
 
   const batchChange = async (target: "on_shelf" | "off_shelf") => {
+    if (batchPendingRef.current) return;
     setError("");
     const selected = products.filter((product) => selectedIds.includes(product.id));
+    if (!selected.length) return;
     const invalid = selected.filter((product) => !canTransition(product.status, target));
     if (invalid.length) {
       setBatchDialog({
@@ -103,19 +125,28 @@ export default function ProductListPage() {
       });
       return;
     }
+    batchPendingRef.current = true;
+    setBatchPending(true);
+    const generation = queryGeneration.current;
     try {
       const updated = await batchUpdateProductStatus({
         product_ids: selected.map((product) => ({ product_id: product.id, version: product.version })),
         target_status: target,
       });
       const replacements = new Map(updated.map((product) => [product.id, product]));
-      setProducts((current) => current.map((product) => replacements.get(product.id) ?? product));
-      setSelectedIds([]);
+      if (generation === queryGeneration.current) {
+        setProducts((current) => current.map((product) => replacements.get(product.id) ?? product));
+        setSelectedIds([]);
+      }
     } catch (caught) {
+      if (generation !== queryGeneration.current) return;
       if (caught instanceof ApiError && caught.status === 409) {
         const lines = Object.entries(caught.response.field_errors).flatMap(([id, reasons]) => reasons.map((reason) => `${id}：${reason}`));
         setBatchDialog({ title: "批量操作失败", lines: lines.length ? lines : [caught.response.message] });
       } else setError(errorText(caught));
+    } finally {
+      batchPendingRef.current = false;
+      setBatchPending(false);
     }
   };
 
@@ -134,7 +165,7 @@ export default function ProductListPage() {
     { title: "操作", key: "actions", render: (_: unknown, product: ProductView) => <Space wrap>
       <Link to={`/products/${product.id}`}>详情</Link>
       <Link to={`/products/${product.id}/edit`}>编辑</Link>
-      {actionsForStatus(product.status).map((action) => <Button key={action.target} type="link" onClick={() => runAction(product, action)}>{action.label}</Button>)}
+      {actionsForStatus(product.status).map((action) => <Button key={action.target} type="link" disabled={pendingIds.has(product.id)} loading={pendingIds.has(product.id)} onClick={() => runAction(product, action)}>{action.label}</Button>)}
     </Space> },
   ];
 
@@ -156,7 +187,7 @@ export default function ProductListPage() {
       </Form>
       {error && <Alert role="alert" type="error" showIcon message={error} style={{ marginTop: 16 }} />}
       <Space style={{ margin: "16px 0" }}>
-        {batchStatusActions.map((action) => <Button key={action.target} disabled={!selectedIds.length} onClick={() => void batchChange(action.target)}>{action.label}</Button>)}
+        {batchStatusActions.map((action) => <Button key={action.target} disabled={!selectedIds.length || batchPending} loading={batchPending} onClick={() => void batchChange(action.target)}>{action.label}</Button>)}
         <Select aria-label="每页条数" value={params.page_size} style={{ width: 120 }} onChange={(pageSize) => writeParams({ ...params, page: 1, page_size: pageSize })} options={[10, 20, 50, 100].map((value) => ({ value, label: `${value} 条/页` }))} />
       </Space>
       <Table<ProductView>

@@ -163,4 +163,39 @@ describe("ProductListPage", () => {
     expect(dialog).toHaveTextContent(`${penalizedProduct.id}：处罚中 → 已上架`);
     expect(submitted).toBe(false);
   });
+
+  it("切换筛选时立即清空当前选择并禁用批量操作", async () => {
+    server.use(http.get("*/api/v1/products", () => HttpResponse.json({ items: [offShelfProduct], total: 1, page: 1, page_size: 20 })));
+    renderPage();
+    const row = await screen.findByRole("row", { name: /春季外套/ });
+    fireEvent.click(within(row).getByRole("checkbox"));
+    expect(screen.getByRole("button", { name: "批量上架" })).toBeEnabled();
+
+    fireEvent.change(screen.getByLabelText("商品关键词"), { target: { value: "新筛选" } });
+    fireEvent.click(screen.getByRole("button", { name: /查\s*询/ }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "批量上架" })).toBeDisabled());
+    expect(screen.queryByText("春季外套")).not.toBeInTheDocument();
+  });
+
+  it("单条状态请求 pending 时双击只发送一次", async () => {
+    let requests = 0;
+    let release: (() => void) | undefined;
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    server.use(
+      http.get("*/api/v1/products", () => HttpResponse.json({ items: [offShelfProduct], total: 1, page: 1, page_size: 20 })),
+      http.patch("*/api/v1/products/:id/status", async () => {
+        requests += 1;
+        await pending;
+        return HttpResponse.json({ ...offShelfProduct, status: "on_shelf", version: 5 });
+      }),
+    );
+    renderPage();
+    const button = within(await screen.findByRole("row", { name: /春季外套/ })).getByRole("button", { name: "上架" });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await waitFor(() => expect(requests).toBe(1));
+    expect(button).toBeDisabled();
+    release?.();
+  });
 });
