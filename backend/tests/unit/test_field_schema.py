@@ -36,6 +36,17 @@ def test_creative_attributes_are_accepted(creative_schema: dict) -> None:
     ) == []
 
 
+def test_creative_attributes_accept_absolute_http_url(creative_schema: dict) -> None:
+    assert validate_attributes(
+        creative_schema,
+        {
+            "asset_type": "html",
+            "dimensions": "300x250",
+            "file_url": "http://assets.example.com/banner.html",
+        },
+    ) == []
+
+
 @pytest.mark.parametrize(
     ("fixture_name", "attributes", "expected_path"),
     [
@@ -159,3 +170,82 @@ def test_nested_required_error_points_to_missing_field() -> None:
     errors = validate_attributes(schema, {"shipping": {}})
 
     assert [error.path for error in errors] == [("shipping", "carrier")]
+
+
+def test_pattern_properties_are_not_reported_as_unknown() -> None:
+    schema = {
+        "type": "object",
+        "properties": {"name": {"type": "string"}},
+        "patternProperties": {"^x-": {"type": "string"}},
+        "additionalProperties": False,
+    }
+
+    errors = validate_attributes(schema, {"name": "item", "x-ok": "yes", "bad": 1})
+
+    assert [error.path for error in errors] == [("bad",)]
+
+
+def test_multiple_required_errors_have_exact_paths() -> None:
+    schema = {
+        "type": "object",
+        "properties": {
+            "first": {"type": "string"},
+            "owner's code": {"type": "string"},
+        },
+        "required": ["first", "owner's code"],
+    }
+
+    errors = validate_attributes(schema, {})
+
+    assert [error.path for error in errors] == [("first",), ("owner's code",)]
+
+
+def test_nested_multiple_required_errors_have_exact_paths() -> None:
+    schema = {
+        "type": "object",
+        "properties": {
+            "shipping": {
+                "type": "object",
+                "properties": {
+                    "carrier": {"type": "string"},
+                    "tracking": {"type": "string"},
+                },
+                "required": ["carrier", "tracking"],
+            }
+        },
+    }
+
+    errors = validate_attributes(schema, {"shipping": {}})
+
+    assert [error.path for error in errors] == [
+        ("shipping", "carrier"),
+        ("shipping", "tracking"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "file_url",
+    [
+        "http://",
+        "javascript:alert(1)",
+        "file:///tmp/banner.png",
+        "/relative/banner.png",
+        "https://user:password@example.com/banner.png",
+        "https://example.com/banner image.png",
+        "https://example.com:",
+        "https://example.com:99999/banner.png",
+    ],
+)
+def test_creative_attributes_reject_unsafe_or_invalid_urls(
+    creative_schema: dict, file_url: str
+) -> None:
+    errors = validate_attributes(
+        creative_schema,
+        {
+            "asset_type": "image",
+            "dimensions": "100x100",
+            "file_url": file_url,
+        },
+    )
+
+    assert [error.path for error in errors] == [("file_url",)]

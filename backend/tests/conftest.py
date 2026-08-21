@@ -55,7 +55,7 @@ def creative_schema() -> dict:
                 "type": "string",
                 "pattern": "^[1-9][0-9]*x[1-9][0-9]*$",
             },
-            "file_url": {"type": "string", "format": "uri"},
+            "file_url": {"type": "string", "format": "http-url"},
         },
         "required": ["asset_type", "dimensions", "file_url"],
         "additionalProperties": False,
