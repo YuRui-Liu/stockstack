@@ -1,6 +1,6 @@
 # 验证状态
 
-本页记录 2026-08-21 最终收口的可复现验证。实现基线 commit 为 `0a3e1d3`；文档与 Makefile 的交付 commit 以包含本文件的当前 Git commit 为准。
+本页记录 2026-08-21 最终收口的可复现验证。功能与测试发现修复基线 commit 为 `0eb786d`；其后变更仅涉及 Makefile 命令安全与验证文档。
 
 ## 本次新鲜验证
 
@@ -12,9 +12,11 @@
 | `npm test -- --run`（`frontend/`） | 通过：Vitest 仅发现 8 个 unit test files，33 passed、0 failed suite。仍有既有的 jsdom `getComputedStyle` 和 MSW 未匹配请求 stderr；不影响退出码。此前 Vitest 误收集 Playwright E2E 文件的失败已通过独立 discovery 配置修复。 |
 | `npm run build`（`frontend/`） | 修复后重跑通过：TypeScript 与 Vite production build 完成；有 bundle 大于 500 kB 的提示。 |
 | `npx playwright test --list`（`frontend/`） | 修复后重跑通过：Playwright 独立发现 1 test in 1 file；仅列出，未执行浏览器 E2E。 |
-| `docker compose --env-file .env.example config` | 通过配置解析；使用的是包含 `CHANGE_ME` 的示例值，仅验证语法和插值，不代表容器已构建或启动。直接运行 `docker compose config` 因缺少 `.env` 的必填秘密而按设计失败。 |
+| `docker compose --env-file .env.example config --quiet` | 通过配置解析；使用的是包含 `CHANGE_ME` 的示例值，仅验证语法和插值，不代表容器已构建或启动。直接运行 `docker compose config --quiet` 因缺少 `.env` 的必填秘密而按设计失败。非 quiet 输出未写入 CI 日志。 |
 | `node --check loadtest/product-detail.js` 与 `node --check loadtest/redis-degraded.js` | 通过 JavaScript 语法检查；没有运行 k6。 |
-| `git diff --check` | 编辑后检查通过；提交前会再次运行。 |
+| `make validate-load-env`（默认值与 IPv6 URL） | 通过；默认 seed UUID、默认 URL 和 `https://[::1]:8080/path?a=1&b=two` 均被接受。 |
+| `make validate-load-env` / `make load-cached`（含反引号或 GNU make `$(shell …)` 与 `touch` 文本的恶意 `BASE_URL`，以及非法 `PRODUCT_ID`） | 均在调用 k6 前以 exit 2 被拒绝；断言两个 `/private/tmp/stockstack-*-INJECTED` marker 均不存在，未产生命令注入副作用。 |
+| `git diff --check` | 编辑后检查通过。 |
 
 ## 历史证据（不等同于本次重跑）
 

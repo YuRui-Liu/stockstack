@@ -97,8 +97,10 @@ cd frontend && npx playwright test --list
 make e2e
 
 # 可选 Compose 配置检查
-docker compose config
+docker compose config --quiet
 ```
+
+CI 中也应使用 `docker compose config --quiet`（需要示例变量时使用 `docker compose --env-file .env.example config --quiet`），不要把非 quiet 的展开配置写入日志，以免环境值随完整配置输出。
 
 本次交付的逐条命令、日期、commit 和环境限制见 [验证状态](docs/performance/verification-status.md)。主 README 不固化容易过时的通过数。当前历史证据包括：后端纯/模拟测试曾为 137 passed、16 skipped；前端测试曾为 33 passed 且 build 成功；PostgreSQL 商品集成曾分组得到 5/10 passed，但最终全套 PostgreSQL 集成测试未重跑。Docker 完整启动、浏览器 E2E 和 k6 完整压测也没有被当作已验证结果。
 
